@@ -13,6 +13,9 @@ import androidx.compose.ui.Modifier
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import com.niftysense.app.presentation.home.HomeScreen
 import com.niftysense.app.presentation.home.HomeViewModel
 import com.niftysense.app.presentation.settings.SettingsScreen
@@ -59,6 +62,17 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                 }
+            }
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // Trigger live rates update whenever user brings the app to foreground
+        val app = application as? NiftySenseApp
+        app?.container?.marketRepository?.let { repo ->
+            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                repo.refresh()
             }
         }
     }

@@ -3,13 +3,10 @@ package com.niftysense.app.widget.ui
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
-import android.graphics.Color
-import android.view.View
 import android.widget.RemoteViews
 import androidx.core.content.ContextCompat
 import com.niftysense.app.MainActivity
 import com.niftysense.app.R
-import com.niftysense.app.data.model.MarketIndexData
 import com.niftysense.app.data.model.MarketSnapshot
 import com.niftysense.app.data.model.MarketStatus
 import com.niftysense.app.domain.usecase.Formatters
@@ -22,9 +19,12 @@ object WidgetRenderer {
         setupClickIntents(context, views, R.id.widget_small_root, R.id.btn_small_refresh)
 
         if (snapshot == null) {
-            views.setTextViewText(R.id.tv_small_nifty_price, "--")
-            views.setTextViewText(R.id.tv_small_sensex_price, "--")
-            views.setTextViewText(R.id.tv_small_timestamp, "Tap to load")
+            views.setTextViewText(R.id.tv_small_nifty_price, "Loading…")
+            views.setTextViewText(R.id.tv_small_sensex_price, "Loading…")
+            views.setTextViewText(R.id.tv_small_nifty_change_pill, "•••")
+            views.setTextViewText(R.id.tv_small_sensex_change_pill, "•••")
+            views.setTextViewText(R.id.tv_small_market_status, "NiftySense • SYNCING")
+            views.setTextViewText(R.id.tv_small_timestamp, "Tap to refresh")
             return views
         }
 
@@ -54,8 +54,11 @@ object WidgetRenderer {
         setupClickIntents(context, views, R.id.widget_medium_root, R.id.btn_medium_refresh)
 
         if (snapshot == null) {
-            views.setTextViewText(R.id.tv_medium_nifty_price, "--")
-            views.setTextViewText(R.id.tv_medium_sensex_price, "--")
+            views.setTextViewText(R.id.tv_medium_nifty_price, "Loading…")
+            views.setTextViewText(R.id.tv_medium_sensex_price, "Loading…")
+            views.setTextViewText(R.id.tv_medium_nifty_change, "Fetching rates…")
+            views.setTextViewText(R.id.tv_medium_sensex_change, "Fetching rates…")
+            views.setTextViewText(R.id.tv_medium_market_status, "SYNCING")
             views.setTextViewText(R.id.tv_medium_timestamp, "• Tap to update")
             return views
         }
@@ -104,8 +107,8 @@ object WidgetRenderer {
         }
         views.setTextViewText(R.id.tv_medium_market_status, statusLabel)
         views.setInt(
-            R.id.view_medium_status_dot,
-            "setBackgroundColor",
+            R.id.iv_medium_status_dot,
+            "setColorFilter",
             ContextCompat.getColor(context, if (isOpen) R.color.market_open_dot else R.color.market_closed_dot)
         )
 
@@ -122,8 +125,11 @@ object WidgetRenderer {
         setupClickIntents(context, views, R.id.widget_large_root, R.id.btn_large_refresh)
 
         if (snapshot == null) {
-            views.setTextViewText(R.id.tv_large_nifty_price, "--")
-            views.setTextViewText(R.id.tv_large_sensex_price, "--")
+            views.setTextViewText(R.id.tv_large_nifty_price, "Loading…")
+            views.setTextViewText(R.id.tv_large_sensex_price, "Loading…")
+            views.setTextViewText(R.id.tv_large_nifty_change, "Syncing…")
+            views.setTextViewText(R.id.tv_large_sensex_change, "Syncing…")
+            views.setTextViewText(R.id.tv_large_market_status, "SYNCING LIVE RATES")
             views.setTextViewText(R.id.tv_large_timestamp, "• Tap to update")
             return views
         }
@@ -186,8 +192,8 @@ object WidgetRenderer {
         }
         views.setTextViewText(R.id.tv_large_market_status, statusLabel)
         views.setInt(
-            R.id.view_large_status_dot,
-            "setBackgroundColor",
+            R.id.iv_large_status_dot,
+            "setColorFilter",
             ContextCompat.getColor(context, if (isOpen) R.color.market_open_dot else R.color.market_closed_dot)
         )
 

@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">NiftySense</string>
+    <string name="refresh_tooltip">Refresh Market Data</string>
     <string name="widget_small_title">NiftySense Compact (2x2)</string>
     <string name="widget_small_description">Compact live NIFTY 50 and SENSEX rates</string>
     <string name="widget_medium_title">NiftySense Minimal (4x1)</string>

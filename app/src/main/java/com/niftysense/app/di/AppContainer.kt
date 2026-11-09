@@ -7,7 +7,7 @@ import androidx.work.NetworkType
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import com.niftysense.app.data.local.MarketPreferencesDataStore
-import com.niftysense.app.data.remote.YahooFinanceProvider
+import com.niftysense.app.data.remote.HybridMarketDataProvider
 import com.niftysense.app.data.repository.MarketDataProvider
 import com.niftysense.app.data.repository.MarketRepository
 import com.niftysense.app.widget.worker.MarketUpdateWorker
@@ -20,7 +20,7 @@ class AppContainer(val context: Context) {
     }
 
     val dataProvider: MarketDataProvider by lazy {
-        YahooFinanceProvider()
+        HybridMarketDataProvider()
     }
 
     val marketRepository: MarketRepository by lazy {

@@ -38,7 +38,7 @@ object Formatters {
     }
 
     fun formatTimeOnly(timestamp: Long): String {
-        val sdf = SimpleDateFormat("hh:mm a", indianLocale).apply {
+        val sdf = SimpleDateFormat("hh:mm:ss a", indianLocale).apply {
             timeZone = istTimeZone
         }
         return sdf.format(Date(timestamp)) + " IST"

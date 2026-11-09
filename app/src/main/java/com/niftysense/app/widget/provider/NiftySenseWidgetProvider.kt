@@ -14,13 +14,13 @@ import kotlinx.coroutines.launch
 open class NiftySenseWidgetProvider : AppWidgetProvider() {
 
     companion object {
-        fun updateAllWidgets(context: Context, snapshot: MarketSnapshot) {
+        fun updateAllWidgets(context: Context, snapshot: MarketSnapshot?) {
             val appWidgetManager = AppWidgetManager.getInstance(context)
 
             // Update Small Widgets
             val smallComponent = ComponentName(context, SmallWidgetProvider::class.java)
             val smallIds = appWidgetManager.getAppWidgetIds(smallComponent)
-            if (smallIds.isNotEmpty()) {
+            if (smallIds != null && smallIds.isNotEmpty()) {
                 val views = WidgetRenderer.renderSmallWidget(context, snapshot)
                 appWidgetManager.updateAppWidget(smallIds, views)
             }
@@ -28,7 +28,7 @@ open class NiftySenseWidgetProvider : AppWidgetProvider() {
             // Update Medium Widgets
             val mediumComponent = ComponentName(context, MediumWidgetProvider::class.java)
             val mediumIds = appWidgetManager.getAppWidgetIds(mediumComponent)
-            if (mediumIds.isNotEmpty()) {
+            if (mediumIds != null && mediumIds.isNotEmpty()) {
                 val views = WidgetRenderer.renderMediumWidget(context, snapshot)
                 appWidgetManager.updateAppWidget(mediumIds, views)
             }
@@ -36,7 +36,7 @@ open class NiftySenseWidgetProvider : AppWidgetProvider() {
             // Update Large Widgets
             val largeComponent = ComponentName(context, LargeWidgetProvider::class.java)
             val largeIds = appWidgetManager.getAppWidgetIds(largeComponent)
-            if (largeIds.isNotEmpty()) {
+            if (largeIds != null && largeIds.isNotEmpty()) {
                 val views = WidgetRenderer.renderLargeWidget(context, snapshot)
                 appWidgetManager.updateAppWidget(largeIds, views)
             }
@@ -47,13 +47,34 @@ open class NiftySenseWidgetProvider : AppWidgetProvider() {
         val app = context.applicationContext as? NiftySenseApp ?: return
         val repository = app.container.marketRepository
 
-        CoroutineScope(Dispatchers.IO).launch {
-            val snapshot = repository.getCachedOrFreshSnapshot()
-            if (snapshot != null) {
-                updateAllWidgets(context, snapshot)
+        // Synchronously bind whatever snapshot is available (or placeholder) so launcher gets instant RemoteViews
+        val cached = repository.uiState.value.snapshot
+        when (this) {
+            is SmallWidgetProvider -> {
+                appWidgetManager.updateAppWidget(appWidgetIds, WidgetRenderer.renderSmallWidget(context, cached))
             }
-            // Trigger background refresh to keep prices fresh
+            is MediumWidgetProvider -> {
+                appWidgetManager.updateAppWidget(appWidgetIds, WidgetRenderer.renderMediumWidget(context, cached))
+            }
+            is LargeWidgetProvider -> {
+                appWidgetManager.updateAppWidget(appWidgetIds, WidgetRenderer.renderLargeWidget(context, cached))
+            }
+            else -> {
+                updateAllWidgets(context, cached)
+            }
+        }
+
+        // Asynchronously fetch fresh live data to update immediately
+        CoroutineScope(Dispatchers.IO).launch {
             repository.refresh()
+        }
+    }
+
+    override fun onEnabled(context: Context) {
+        super.onEnabled(context)
+        val app = context.applicationContext as? NiftySenseApp ?: return
+        CoroutineScope(Dispatchers.IO).launch {
+            app.container.marketRepository.refresh()
         }
     }
 }
