@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">NiftySense</string>
+    <string name="widget_small_title">NiftySense Compact (2x2)</string>
+    <string name="widget_small_description">Compact live NIFTY 50 and SENSEX rates</string>
+    <string name="widget_medium_title">NiftySense Minimal (4x1)</string>
+    <string name="widget_medium_description">Clean Groww-style live NIFTY 50 &amp; SENSEX dual tracker</string>
+    <string name="widget_large_title">NiftySense Pro (4x2)</string>
+    <string name="widget_large_description">Detailed NIFTY &amp; SENSEX with live intraday sparkline trends</string>
+</resources>

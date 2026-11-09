@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="widget_background">#FFFFFF</color>
+    <color name="widget_card_background">#F8FAFC</color>
+    <color name="widget_text_primary">#0F172A</color>
+    <color name="widget_text_secondary">#64748B</color>
+    <color name="widget_divider">#E2E8F0</color>
+    <color name="widget_pill_border">#CBD5E1</color>
+
+    <color name="positive_green">#059669</color>
+    <color name="positive_green_bg">#E6F9F0</color>
+    <color name="negative_red">#E11D48</color>
+    <color name="negative_red_bg">#FEE2E2</color>
+
+    <color name="market_open_dot">#10B981</color>
+    <color name="market_closed_dot">#94A3B8</color>
+</resources>
