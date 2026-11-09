@@ -30,8 +30,8 @@ You can download the pre-built, signed APK directly to your Android device:
 
 | Package | Type | Size | Direct Link |
 | :--- | :--- | :--- | :--- |
-| **Release APK** *(Recommended)* | Signed Release APK | ~43 MB | [Download `niftysense-release-signed.apk`](https://github.com/arrowloki/nifty-sense/releases/download/v1.0.0/niftysense-release-signed.apk) |
-| **Debug APK** | Debug APK | ~58 MB | [Download `niftysense-debug.apk`](https://github.com/arrowloki/nifty-sense/releases/download/v1.0.0/niftysense-debug.apk) |
+| **Release APK** *(Recommended)* | Signed Release APK | ~43 MB | [Download `niftysense-release-signed.apk`](https://github.com/arrowloki/nifty-sense/releases/download/v1.0.1/niftysense-release-signed.apk) |
+| **Debug APK** | Debug APK | ~58 MB | [Download `niftysense-debug.apk`](https://github.com/arrowloki/nifty-sense/releases/download/v1.0.1/niftysense-debug.apk) |
 
 ---
 
