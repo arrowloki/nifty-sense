@@ -6,6 +6,7 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,6 +23,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Bolt
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Widgets
@@ -34,6 +36,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -48,6 +51,8 @@ import com.niftysense.app.data.model.MarketStatus
 import com.niftysense.app.domain.usecase.Formatters
 import com.niftysense.app.presentation.home.components.IndexCard
 import com.niftysense.app.presentation.home.components.MarketStatusBadge
+import com.niftysense.app.presentation.theme.Emerald500
+import kotlinx.coroutines.delay
 
 @Composable
 fun HomeScreen(
@@ -68,9 +73,12 @@ fun HomeScreen(
         label = "rotation"
     )
 
-    androidx.compose.runtime.LaunchedEffect(Unit) {
+    // Fast in-app live streaming ticker loop: 3 seconds during market hours, 30s when closed
+    LaunchedEffect(Unit) {
         while (true) {
-            kotlinx.coroutines.delay(15_000L)
+            val status = MarketStatus.current()
+            val interval = if (status == MarketStatus.OPEN) 3_000L else 30_000L
+            delay(interval)
             viewModel.refresh()
         }
     }
@@ -130,6 +138,46 @@ fun HomeScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp)
         ) {
+            // Live Stream Provider Badge
+            val isFyers = snapshot?.sourceProvider?.contains("Fyers", ignoreCase = true) == true
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(
+                        if (isFyers) Emerald500.copy(alpha = 0.1f)
+                        else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                    )
+                    .clickable { onNavigateToSettings() }
+                    .padding(horizontal = 12.dp, vertical = 6.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Rounded.Bolt,
+                        contentDescription = null,
+                        tint = if (isFyers) Emerald500 else MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = if (isFyers) "FYERS BROKER STREAM" else "PUBLIC WEB FEED",
+                        fontSize = 10.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (isFyers) Emerald500 else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                Text(
+                    text = if (isFyers) "100% Free Limits Active" else "Tap to connect Fyers",
+                    fontSize = 10.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(6.dp))
+
             // Sub-bar with last updated time and manual refresh action
             Row(
                 modifier = Modifier
@@ -163,7 +211,7 @@ fun HomeScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
             // Error Banner
             if (uiState.errorMessage != null && snapshot == null) {
@@ -223,15 +271,15 @@ fun HomeScreen(
                             )
                         }
                         Spacer(modifier = Modifier.width(14.dp))
-                        Column {
+                        Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = "Home-Screen Widgets Ready",
-                                fontSize = 13.5.sp,
-                                fontWeight = FontWeight.Bold,
+                                text = "Home-Screen Widgets",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.SemiBold,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                             Text(
-                                text = "Long press on your home launcher screen → Widgets → NiftySense to add Compact, Minimal (4x1), or Pro (4x2).",
+                                text = "Long press your home screen to add Small (2x2), Dual (4x1), or Trend (4x2) live market widgets.",
                                 fontSize = 11.5.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 lineHeight = 16.sp
@@ -239,19 +287,30 @@ fun HomeScreen(
                         }
                     }
                 }
-            } else {
-                // Loading Skeleton
+            } else if (uiState.isLoading) {
+                // Loading Placeholder Skeletons
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(260.dp),
+                        .height(160.dp)
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)),
                     contentAlignment = Alignment.Center
                 ) {
                     CircularProgressIndicator(
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(36.dp)
+                        modifier = Modifier.size(32.dp),
+                        strokeWidth = 2.5.dp,
+                        color = MaterialTheme.colorScheme.primary
                     )
                 }
+                Spacer(modifier = Modifier.height(16.dp))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(160.dp)
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
+                )
             }
 
             Spacer(modifier = Modifier.height(30.dp))

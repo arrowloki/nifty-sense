@@ -7,10 +7,13 @@ import androidx.work.NetworkType
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import com.niftysense.app.data.local.MarketPreferencesDataStore
+import com.niftysense.app.data.remote.FyersMarketDataProvider
 import com.niftysense.app.data.remote.HybridMarketDataProvider
+import com.niftysense.app.data.remote.SmartMarketDataProvider
 import com.niftysense.app.data.repository.MarketDataProvider
 import com.niftysense.app.data.repository.MarketRepository
 import com.niftysense.app.widget.worker.MarketUpdateWorker
+import kotlinx.coroutines.runBlocking
 import java.util.concurrent.TimeUnit
 
 class AppContainer(val context: Context) {
@@ -19,8 +22,22 @@ class AppContainer(val context: Context) {
         MarketPreferencesDataStore(context)
     }
 
+    val fyersProvider: FyersMarketDataProvider by lazy {
+        FyersMarketDataProvider(
+            credentialsProvider = {
+                runBlocking {
+                    preferencesDataStore.getFyersCredentials()
+                }
+            }
+        )
+    }
+
     val dataProvider: MarketDataProvider by lazy {
-        HybridMarketDataProvider()
+        SmartMarketDataProvider(
+            fyersProvider = fyersProvider,
+            hybridProvider = HybridMarketDataProvider(),
+            preferencesDataStore = preferencesDataStore
+        )
     }
 
     val marketRepository: MarketRepository by lazy {
