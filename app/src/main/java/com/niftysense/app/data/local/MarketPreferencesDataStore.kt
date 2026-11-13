@@ -102,8 +102,7 @@ class MarketPreferencesDataStore(private val context: Context) {
         val prefs = context.dataStore.data.first()
         val appId = prefs[KEY_FYERS_APP_ID]?.takeIf { it.isNotBlank() }
         val token = prefs[KEY_FYERS_ACCESS_TOKEN]?.takeIf { it.isNotBlank() }
-        val enabled = prefs[KEY_FYERS_ENABLED] ?: false
-        return if (enabled && !token.isNullOrEmpty()) {
+        return if (!token.isNullOrBlank()) {
             Pair(appId, token)
         } else {
             Pair(null, null)
@@ -112,8 +111,8 @@ class MarketPreferencesDataStore(private val context: Context) {
 
     suspend fun saveFyersCredentials(appId: String?, token: String?, enabled: Boolean = true) {
         context.dataStore.edit { prefs ->
-            if (appId != null) prefs[KEY_FYERS_APP_ID] = appId.trim() else prefs.remove(KEY_FYERS_APP_ID)
-            if (token != null) prefs[KEY_FYERS_ACCESS_TOKEN] = token.trim() else prefs.remove(KEY_FYERS_ACCESS_TOKEN)
+            if (!appId.isNullOrBlank()) prefs[KEY_FYERS_APP_ID] = appId.trim() else prefs.remove(KEY_FYERS_APP_ID)
+            if (!token.isNullOrBlank()) prefs[KEY_FYERS_ACCESS_TOKEN] = token.trim() else prefs.remove(KEY_FYERS_ACCESS_TOKEN)
             prefs[KEY_FYERS_ENABLED] = enabled && !token.isNullOrBlank()
         }
     }

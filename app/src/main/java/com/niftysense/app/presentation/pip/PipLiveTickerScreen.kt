@@ -106,9 +106,10 @@ fun PipLiveTickerScreen(
                     )
                 }
 
+                val isFyers = snapshot?.sourceProvider?.contains("Fyers", ignoreCase = true) == true
                 Text(
-                    text = if (snapshot?.sourceProvider?.contains("Fyers", ignoreCase = true) == true) "⚡ FYERS" else "NSE/BSE",
-                    color = Color(0xFF64748B),
+                    text = if (isFyers) "⚡ FYERS" else "NORMAL FEED",
+                    color = if (isFyers) Emerald500 else Color(0xFF64748B),
                     fontSize = 8.5.sp,
                     fontWeight = FontWeight.SemiBold
                 )

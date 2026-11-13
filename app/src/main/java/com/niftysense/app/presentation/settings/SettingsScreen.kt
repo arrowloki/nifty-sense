@@ -23,6 +23,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.BatteryChargingFull
+import androidx.compose.material.icons.rounded.Bolt
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.ContentPaste
 import androidx.compose.material.icons.rounded.DarkMode
@@ -87,7 +88,6 @@ fun SettingsScreen(
 
     val savedAppId by viewModel.fyersAppId.collectAsState()
     val savedToken by viewModel.fyersAccessToken.collectAsState()
-    val fyersEnabled by viewModel.fyersEnabled.collectAsState()
     val testState by viewModel.fyersTestState.collectAsState()
 
     var inputAppId by remember(savedAppId) { mutableStateOf(savedAppId ?: "") }
@@ -131,6 +131,7 @@ fun SettingsScreen(
             // ==============================================================
             // --- SECTION 1: FYERS LIVE STREAMING INTEGRATION ---
             // ==============================================================
+            val isConnected = !savedToken.isNullOrEmpty()
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -145,7 +146,6 @@ fun SettingsScreen(
                 )
 
                 // Status Pill
-                val isConnected = fyersEnabled && !savedToken.isNullOrEmpty()
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(8.dp))
@@ -156,7 +156,7 @@ fun SettingsScreen(
                         .padding(horizontal = 8.dp, vertical = 3.dp)
                 ) {
                     Text(
-                        text = if (isConnected) "BROKER ACTIVE" else "PUBLIC FEED",
+                        text = if (isConnected) "FYERS BROKER ACTIVE" else "PUBLIC FEED (NORMAL)",
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Bold,
                         color = if (isConnected) Emerald500 else MaterialTheme.colorScheme.onSurfaceVariant
@@ -171,7 +171,7 @@ fun SettingsScreen(
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 border = CardDefaults.outlinedCardBorder().copy(
                     brush = androidx.compose.ui.graphics.SolidColor(
-                        if (fyersEnabled) Emerald500.copy(alpha = 0.4f)
+                        if (isConnected) Emerald500.copy(alpha = 0.4f)
                         else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
                     )
                 )
@@ -239,35 +239,53 @@ fun SettingsScreen(
 
                     Spacer(modifier = Modifier.height(14.dp))
 
-                    // Action Buttons (Test & Save / Clear)
+                    // Action Buttons (Save & Apply / Test / Disconnect)
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Button(
                             onClick = {
+                                viewModel.saveFyersCredentials(inputAppId, inputToken, enabled = true)
+                                Toast.makeText(context, "Fyers Token Saved! Live broker feed active.", Toast.LENGTH_SHORT).show()
+                            },
+                            enabled = inputToken.isNotBlank(),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.weight(1.1f)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Bolt,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(5.dp))
+                            Text("Save & Apply", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+
+                        OutlinedButton(
+                            onClick = {
                                 viewModel.testFyersConnection(inputAppId, inputToken)
                             },
                             enabled = inputToken.isNotBlank() && !testState.isLoading,
                             shape = RoundedCornerShape(10.dp),
-                            modifier = Modifier.weight(1.4f)
+                            modifier = Modifier.weight(0.9f)
                         ) {
                             if (testState.isLoading) {
                                 CircularProgressIndicator(
-                                    modifier = Modifier.size(16.dp),
+                                    modifier = Modifier.size(14.dp),
                                     strokeWidth = 2.dp,
-                                    color = MaterialTheme.colorScheme.onPrimary
+                                    color = MaterialTheme.colorScheme.primary
                                 )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text("Verifying…", fontSize = 12.sp)
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Testing…", fontSize = 11.sp)
                             } else {
                                 Icon(
                                     imageVector = Icons.Rounded.Sync,
                                     contentDescription = null,
-                                    modifier = Modifier.size(16.dp)
+                                    modifier = Modifier.size(14.dp)
                                 )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("Test & Save Token", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Test Token", fontSize = 11.5.sp)
                             }
                         }
 
@@ -277,12 +295,11 @@ fun SettingsScreen(
                                     viewModel.clearFyersCredentials()
                                     inputToken = ""
                                     inputAppId = ""
-                                    Toast.makeText(context, "Fyers credentials removed", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, "Fyers disconnected. Reverted to normal public feed.", Toast.LENGTH_SHORT).show()
                                 },
-                                shape = RoundedCornerShape(10.dp),
-                                modifier = Modifier.weight(0.9f)
+                                shape = RoundedCornerShape(10.dp)
                             ) {
-                                Text("Disconnect", fontSize = 11.5.sp)
+                                Text("Disconnect", fontSize = 11.sp)
                             }
                         }
                     }

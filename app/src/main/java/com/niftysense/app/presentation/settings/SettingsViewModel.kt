@@ -58,6 +58,9 @@ class SettingsViewModel(
 
     fun testFyersConnection(appId: String?, token: String?) {
         viewModelScope.launch {
+            if (!token.isNullOrBlank()) {
+                preferencesDataStore.saveFyersCredentials(appId, token, enabled = true)
+            }
             _fyersTestState.value = FyersTestState(isLoading = true)
             val result = container.fyersProvider.testConnection(appId, token)
             if (result.isSuccess) {
@@ -66,22 +69,26 @@ class SettingsViewModel(
                     message = result.getOrNull(),
                     isSuccess = true
                 )
-                // Automatically save verified credentials
-                preferencesDataStore.saveFyersCredentials(appId, token, enabled = true)
                 container.marketRepository.refresh()
             } else {
                 _fyersTestState.value = FyersTestState(
                     isLoading = false,
-                    message = result.exceptionOrNull()?.localizedMessage ?: "Connection failed",
+                    message = result.exceptionOrNull()?.localizedMessage ?: "Connection failed (Falling back to normal public feed)",
                     isSuccess = false
                 )
+                container.marketRepository.refresh()
             }
         }
     }
 
-    fun saveFyersCredentials(appId: String?, token: String?, enabled: Boolean) {
+    fun saveFyersCredentials(appId: String?, token: String?, enabled: Boolean = true) {
         viewModelScope.launch {
             preferencesDataStore.saveFyersCredentials(appId, token, enabled)
+            _fyersTestState.value = FyersTestState(
+                isLoading = false,
+                message = "Fyers token saved! Streaming live broker data.",
+                isSuccess = true
+            )
             container.marketRepository.refresh()
         }
     }
@@ -89,7 +96,11 @@ class SettingsViewModel(
     fun clearFyersCredentials() {
         viewModelScope.launch {
             preferencesDataStore.clearFyersCredentials()
-            _fyersTestState.value = FyersTestState()
+            _fyersTestState.value = FyersTestState(
+                isLoading = false,
+                message = "Fyers token removed. Reverted to normal public web feed.",
+                isSuccess = null
+            )
             container.marketRepository.refresh()
         }
     }

@@ -22,17 +22,17 @@ class SmartMarketDataProvider(
         val (_, token) = preferencesDataStore.getFyersCredentials()
 
         if (!token.isNullOrBlank()) {
-            // Fyers is configured and enabled!
+            // Fyers token is present! Pull live broker data from Fyers
             val fyersResult = fyersProvider.fetchMarketSnapshot()
             if (fyersResult.isSuccess) {
                 return fyersResult
             } else {
                 val error = fyersResult.exceptionOrNull()
-                Log.w(TAG, "Fyers live fetch failed: ${error?.message}. Seamlessly falling back to public feed.")
+                Log.w(TAG, "Fyers live fetch failed: ${error?.message}. Seamlessly falling back to normal public feed.")
             }
         }
 
-        // Fallback to Moneycontrol & Yahoo Finance
+        // When token is absent or invalid, fetch normal way via public web feeds
         return hybridProvider.fetchMarketSnapshot()
     }
 }

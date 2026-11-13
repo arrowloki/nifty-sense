@@ -58,6 +58,26 @@ class FyersMarketDataProvider(
             return "$trimmedAppId:$trimmedToken"
         }
 
+        // Auto-extract app_id from JWT payload if user only pasted raw access token
+        try {
+            val parts = trimmedToken.split(".")
+            if (parts.size >= 2) {
+                val pad = when (parts[1].length % 4) {
+                    2 -> "=="
+                    3 -> "="
+                    else -> ""
+                }
+                val decoded = String(java.util.Base64.getUrlDecoder().decode(parts[1] + pad), Charsets.UTF_8)
+                val appIdRegex = Regex(""""(?:app_id|client_id)"\s*:\s*"([^"]+)"""")
+                val match = appIdRegex.find(decoded)
+                val extracted = match?.groupValues?.get(1)
+                if (!extracted.isNullOrBlank()) {
+                    return "$extracted:$trimmedToken"
+                }
+            }
+        } catch (_: Exception) {
+        }
+
         return trimmedToken
     }
 
