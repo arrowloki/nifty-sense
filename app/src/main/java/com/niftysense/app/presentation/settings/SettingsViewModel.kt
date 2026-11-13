@@ -1,12 +1,9 @@
 package com.niftysense.app.presentation.settings
 
-import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import com.niftysense.app.data.local.MarketPreferencesDataStore
 import com.niftysense.app.di.AppContainer
-import com.niftysense.app.service.LiveMarketService
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -56,18 +53,6 @@ class SettingsViewModel(
         initialValue = false
     )
 
-    val liveStreamEnabled: StateFlow<Boolean> = preferencesDataStore.liveStreamEnabledFlow.stateIn(
-        scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(5000),
-        initialValue = false
-    )
-
-    val liveStreamInterval: StateFlow<Int> = preferencesDataStore.liveStreamIntervalSecondsFlow.stateIn(
-        scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(5000),
-        initialValue = 15
-    )
-
     private val _fyersTestState = MutableStateFlow(FyersTestState())
     val fyersTestState: StateFlow<FyersTestState> = _fyersTestState.asStateFlow()
 
@@ -106,23 +91,6 @@ class SettingsViewModel(
             preferencesDataStore.clearFyersCredentials()
             _fyersTestState.value = FyersTestState()
             container.marketRepository.refresh()
-        }
-    }
-
-    fun setLiveStreamEnabled(enabled: Boolean, context: Context) {
-        viewModelScope.launch {
-            preferencesDataStore.setLiveStreamEnabled(enabled)
-            if (enabled) {
-                LiveMarketService.start(context)
-            } else {
-                LiveMarketService.stop(context)
-            }
-        }
-    }
-
-    fun setLiveStreamInterval(seconds: Int) {
-        viewModelScope.launch {
-            preferencesDataStore.setLiveStreamIntervalSeconds(seconds)
         }
     }
 

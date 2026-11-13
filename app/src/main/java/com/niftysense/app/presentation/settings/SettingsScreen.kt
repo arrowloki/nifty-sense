@@ -63,7 +63,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -74,7 +73,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.niftysense.app.presentation.theme.Emerald500
 import com.niftysense.app.presentation.theme.Rose500
-import com.niftysense.app.service.LiveMarketService
 
 @Composable
 fun SettingsScreen(
@@ -83,17 +81,13 @@ fun SettingsScreen(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    val clipboardManager = LocalClipboardManager.current
-
     val currentTheme by viewModel.themeMode.collectAsState()
+    val refreshInterval by viewModel.refreshInterval.collectAsState()
 
     val savedAppId by viewModel.fyersAppId.collectAsState()
     val savedToken by viewModel.fyersAccessToken.collectAsState()
     val fyersEnabled by viewModel.fyersEnabled.collectAsState()
     val testState by viewModel.fyersTestState.collectAsState()
-
-    val liveStreamEnabled by viewModel.liveStreamEnabled.collectAsState()
-    val liveStreamInterval by viewModel.liveStreamInterval.collectAsState()
 
     var inputAppId by remember(savedAppId) { mutableStateOf(savedAppId ?: "") }
     var inputToken by remember(savedToken) { mutableStateOf(savedToken ?: "") }
@@ -225,29 +219,13 @@ fun SettingsScreen(
                         visualTransformation = if (isTokenVisible) VisualTransformation.None else PasswordVisualTransformation(),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                         trailingIcon = {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                IconButton(onClick = { isTokenVisible = !isTokenVisible }) {
-                                    Icon(
-                                        imageVector = if (isTokenVisible) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility,
-                                        contentDescription = if (isTokenVisible) "Hide token" else "Show token",
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                }
-                                IconButton(onClick = {
-                                    val clip = clipboardManager.getText()?.text
-                                    if (!clip.isNullOrBlank()) {
-                                        inputToken = clip
-                                        Toast.makeText(context, "Pasted from clipboard", Toast.LENGTH_SHORT).show()
-                                    }
-                                }) {
-                                    Icon(
-                                        imageVector = Icons.Rounded.ContentPaste,
-                                        contentDescription = "Paste",
-                                        tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                }
+                            IconButton(onClick = { isTokenVisible = !isTokenVisible }) {
+                                Icon(
+                                    imageVector = if (isTokenVisible) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility,
+                                    contentDescription = if (isTokenVisible) "Hide token" else "Show token",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(18.dp)
+                                )
                             }
                         },
                         modifier = Modifier.fillMaxWidth(),
@@ -365,10 +343,10 @@ fun SettingsScreen(
             Spacer(modifier = Modifier.height(24.dp))
 
             // ==============================================================
-            // --- SECTION 2: LIVE WIDGET STREAMING (FOREGROUND SERVICE) ---
+            // --- SECTION 2: WIDGET & BACKGROUND SYNC ---
             // ==============================================================
             Text(
-                text = "HOME-SCREEN LIVE WIDGET STREAMING",
+                text = "WIDGET & BACKGROUND SYNC",
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
@@ -382,75 +360,73 @@ fun SettingsScreen(
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        text = "Periodic Background Refresh",
+                        fontSize = 14.5.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = "Battery-optimized periodic sync via Android WorkManager. Updates widgets in background during trading hours.",
+                        fontSize = 11.5.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        lineHeight = 15.sp
+                    )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "Live Background Widget Updates",
-                                fontSize = 14.5.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            Text(
-                                text = "Bypasses Android widget sleep limits during market hours (9:15 AM - 3:30 PM IST) using a silent status ticker.",
-                                fontSize = 11.5.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                lineHeight = 15.sp
-                            )
-                        }
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Switch(
-                            checked = liveStreamEnabled,
-                            onCheckedChange = { enabled ->
-                                viewModel.setLiveStreamEnabled(enabled, context)
-                            },
-                            colors = SwitchDefaults.colors(
-                                checkedThumbColor = Color.White,
-                                checkedTrackColor = Emerald500
-                            )
-                        )
-                    }
-
-                    if (liveStreamEnabled) {
-                        Spacer(modifier = Modifier.height(14.dp))
-                        Text(
-                            text = "Stream Update Interval (Free Limit Compliant)",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            listOf(10 to "10s", 15 to "15s (Optimal)", 30 to "30s").forEach { (secs, label) ->
-                                val isSelected = liveStreamInterval == secs
-                                Box(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .background(
-                                            if (isSelected) MaterialTheme.colorScheme.primary
-                                            else MaterialTheme.colorScheme.surfaceVariant
-                                        )
-                                        .clickable { viewModel.setLiveStreamInterval(secs) }
-                                        .padding(vertical = 8.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                        text = label,
-                                        fontSize = 11.sp,
-                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                        color = if (isSelected) MaterialTheme.colorScheme.onPrimary
-                                        else MaterialTheme.colorScheme.onSurface
+                        listOf(15 to "15 min", 30 to "30 min", 60 to "60 min").forEach { (minutes, label) ->
+                            val isSelected = refreshInterval == minutes
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(
+                                        if (isSelected) MaterialTheme.colorScheme.primary
+                                        else MaterialTheme.colorScheme.surfaceVariant
                                     )
-                                }
+                                    .clickable { viewModel.setRefreshInterval(minutes) }
+                                    .padding(vertical = 8.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = label,
+                                    fontSize = 11.sp,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                    color = if (isSelected) MaterialTheme.colorScheme.onPrimary
+                                    else MaterialTheme.colorScheme.onSurface
+                                )
                             }
                         }
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                            .padding(10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Sync,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Tip: Tap the ↻ button directly on any home-screen widget to get immediate sub-second market quotes anytime.",
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            lineHeight = 15.sp
+                        )
                     }
                 }
             }

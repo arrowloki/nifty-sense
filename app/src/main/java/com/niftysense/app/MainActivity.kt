@@ -1,8 +1,5 @@
 package com.niftysense.app
 
-import android.Manifest
-import android.content.pm.PackageManager
-import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -21,10 +18,8 @@ import com.niftysense.app.presentation.home.HomeViewModel
 import com.niftysense.app.presentation.settings.SettingsScreen
 import com.niftysense.app.presentation.settings.SettingsViewModel
 import com.niftysense.app.presentation.theme.NiftySenseTheme
-import com.niftysense.app.service.LiveMarketService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
@@ -35,16 +30,6 @@ class MainActivity : ComponentActivity() {
 
         val app = application as NiftySenseApp
         val container = app.container
-
-        requestNotificationPermissionIfNeeded()
-
-        // If user previously enabled live streaming, ensure the service is running
-        CoroutineScope(Dispatchers.IO).launch {
-            val isLiveStreamEnabled = container.preferencesDataStore.liveStreamEnabledFlow.first()
-            if (isLiveStreamEnabled && !LiveMarketService.isServiceRunning) {
-                LiveMarketService.start(this@MainActivity)
-            }
-        }
 
         setContent {
             val themeMode by container.preferencesDataStore.themeModeFlow.collectAsState(initial = "SYSTEM")
@@ -77,14 +62,6 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                 }
-            }
-        }
-    }
-
-    private fun requestNotificationPermissionIfNeeded() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            if (checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-                requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 101)
             }
         }
     }
