@@ -30,6 +30,7 @@ import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.Key
 import androidx.compose.material.icons.rounded.LightMode
+import androidx.compose.material.icons.rounded.PictureInPictureAlt
 import androidx.compose.material.icons.rounded.Security
 import androidx.compose.material.icons.rounded.SettingsBrightness
 import androidx.compose.material.icons.rounded.Sync
@@ -425,6 +426,31 @@ fun SettingsScreen(
                             text = "Tip: Tap the ↻ button directly on any home-screen widget to get immediate sub-second market quotes anytime.",
                             fontSize = 11.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            lineHeight = 15.sp
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(Emerald500.copy(alpha = 0.08f))
+                            .padding(10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.PictureInPictureAlt,
+                            contentDescription = null,
+                            tint = Emerald500,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Groww-Style Floating Ticker: Minimize the app (swipe up/home) or tap the floating window icon to stream live NIFTY & SENSEX over any app in Picture-in-Picture mode.",
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurface,
                             lineHeight = 15.sp
                         )
                     }

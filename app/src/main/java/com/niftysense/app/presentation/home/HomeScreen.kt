@@ -24,6 +24,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Bolt
+import androidx.compose.material.icons.rounded.PictureInPictureAlt
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Widgets
@@ -58,6 +59,7 @@ import kotlinx.coroutines.delay
 fun HomeScreen(
     viewModel: HomeViewModel,
     onNavigateToSettings: () -> Unit,
+    onEnterPip: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -115,7 +117,18 @@ fun HomeScreen(
                     MarketStatusBadge(
                         status = snapshot?.marketStatus ?: MarketStatus.current()
                     )
-                    Spacer(modifier = Modifier.width(6.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    IconButton(
+                        onClick = onEnterPip,
+                        modifier = Modifier.size(36.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.PictureInPictureAlt,
+                            contentDescription = "Float Live Ticker",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
                     IconButton(
                         onClick = onNavigateToSettings,
                         modifier = Modifier.size(36.dp)
