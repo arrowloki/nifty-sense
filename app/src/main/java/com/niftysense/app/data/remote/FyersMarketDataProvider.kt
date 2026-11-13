@@ -32,8 +32,8 @@ class FyersMarketDataProvider(
 
     private val userAgent = "NiftySense-Android/1.0"
 
-    private val primaryBaseUrl = "https://api-t1.fyers.in/data-rest/v3/quotes"
-    private val secondaryBaseUrl = "https://api.fyers.in/data-rest/v3/quotes"
+    private val primaryBaseUrl = "https://api-t1.fyers.in/data/quotes"
+    private val secondaryBaseUrl = "https://api.fyers.in/data/quotes"
 
     companion object {
         const val NIFTY_SYMBOL = "NSE:NIFTY50-INDEX"
@@ -154,6 +154,8 @@ class FyersMarketDataProvider(
         val request = Request.Builder()
             .url(url)
             .header("Authorization", authHeader)
+            .header("version", "3")
+            .header("Content-Type", "application/json")
             .header("User-Agent", userAgent)
             .header("Accept", "application/json")
             .header("Cache-Control", "no-cache")
@@ -171,17 +173,21 @@ class FyersMarketDataProvider(
             }
 
             val body = response.body?.string() ?: return null
-            return json.decodeFromString<FyersQuotesResponse>(body)
+            val parsed = json.decodeFromString<FyersQuotesResponse>(body)
+            if (parsed.s == "error" || (parsed.code != null && parsed.code != 200 && parsed.code != 204)) {
+                throw IOException(parsed.message ?: "Fyers API Error (${parsed.code})")
+            }
+            return parsed
         }
     }
 
     private fun isNifty(item: FyersQuoteData): Boolean {
-        val sym = (item.symbol ?: item.name ?: "").uppercase()
+        val sym = item.symbolIdentifier.uppercase()
         return sym.contains("NIFTY50") || sym.contains("NIFTY 50") || sym.contains("NIFTY")
     }
 
     private fun isSensex(item: FyersQuoteData): Boolean {
-        val sym = (item.symbol ?: item.name ?: "").uppercase()
+        val sym = item.symbolIdentifier.uppercase()
         return sym.contains("SENSEX") || sym.contains("BSESN")
     }
 
@@ -212,7 +218,7 @@ class FyersMarketDataProvider(
         val sparkline = listOf(prevClose, openPrice, dayLow, dayHigh, currentPrice)
 
         return MarketIndexData(
-            symbol = quote.symbol ?: fallbackSymbol,
+            symbol = quote.symbolIdentifier.ifEmpty { fallbackSymbol },
             displayName = displayName,
             exchange = exchange,
             currentValue = currentPrice,

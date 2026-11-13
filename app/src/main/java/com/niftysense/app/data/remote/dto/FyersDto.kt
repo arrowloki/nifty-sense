@@ -16,10 +16,15 @@ data class FyersQuotesResponse(
 
 @Serializable
 data class FyersQuoteData(
+    val n: String? = null,              // Standard Fyers symbol identifier (e.g. "NSE:NIFTY50-INDEX")
     val symbol: String? = null,
     val name: String? = null,
+    val s: String? = null,
     val v: FyersQuoteValues? = null
-)
+) {
+    val symbolIdentifier: String
+        get() = n ?: symbol ?: name ?: v?.symbol ?: ""
+}
 
 @Serializable
 data class FyersQuoteValues(
@@ -33,5 +38,8 @@ data class FyersQuoteValues(
     val volume: Long? = null,
     val original_ltp: Double? = null,
     val last_traded_time: Long? = null,
-    val exch_feed_time: Long? = null
+    val exch_feed_time: Long? = null,
+    val short_name: String? = null,
+    val symbol: String? = null,
+    val description: String? = null
 )

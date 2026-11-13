@@ -95,4 +95,59 @@ class FyersMarketDataProviderTest {
         assertEquals(340.20, sensex.v!!.ch!!, 0.01)
         assertEquals(0.42, sensex.v!!.chp!!, 0.01)
     }
+
+    @Test
+    fun testFyersV3QuotesRealFormatWithNKey() {
+        val sampleJson = """
+        {
+          "s": "ok",
+          "code": 200,
+          "message": "",
+          "d": [
+            {
+              "n": "NSE:NIFTY50-INDEX",
+              "s": "ok",
+              "v": {
+                "lp": 24150.30,
+                "ch": -45.20,
+                "chp": -0.19,
+                "open_price": 24200.00,
+                "high_price": 24250.00,
+                "low_price": 24100.00,
+                "prev_close_price": 24195.50
+              }
+            },
+            {
+              "n": "BSE:SENSEX-INDEX",
+              "s": "ok",
+              "v": {
+                "lp": 79500.50,
+                "ch": -120.00,
+                "chp": -0.15,
+                "open_price": 79650.00,
+                "high_price": 79800.00,
+                "low_price": 79400.00,
+                "prev_close_price": 79620.50
+              }
+            }
+          ]
+        }
+        """.trimIndent()
+
+        val json = Json { ignoreUnknownKeys = true; isLenient = true; coerceInputValues = true }
+        val parsed = json.decodeFromString<FyersQuotesResponse>(sampleJson)
+
+        assertEquals("ok", parsed.s)
+        assertEquals(2, parsed.items.size)
+
+        val nifty = parsed.items.find { it.symbolIdentifier == "NSE:NIFTY50-INDEX" }
+        assertNotNull(nifty)
+        assertEquals("NSE:NIFTY50-INDEX", nifty!!.n)
+        assertEquals(24150.30, nifty.v!!.lp!!, 0.01)
+
+        val sensex = parsed.items.find { it.symbolIdentifier == "BSE:SENSEX-INDEX" }
+        assertNotNull(sensex)
+        assertEquals("BSE:SENSEX-INDEX", sensex!!.n)
+        assertEquals(79500.50, sensex.v!!.lp!!, 0.01)
+    }
 }
