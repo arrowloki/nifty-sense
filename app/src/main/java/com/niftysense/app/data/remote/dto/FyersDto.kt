@@ -1,6 +1,50 @@
 package com.niftysense.app.data.remote.dto
 
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
+import java.io.IOException
+
+class FyersApiException(
+    val code: Int?,
+    override val message: String
+) : IOException(message)
+
+@Serializable
+data class FyersJwtPayload(
+    val fy_id: String? = null,
+    val app_id: String? = null,
+    val client_id: String? = null,
+    val user_id: String? = null,
+    val hsm_key: String? = null,
+    val exp: Long? = null,
+    val iat: Long? = null
+)
+
+object FyersJwtDecoder {
+    private val json = Json { ignoreUnknownKeys = true; isLenient = true; coerceInputValues = true }
+
+    fun parse(token: String?): FyersJwtPayload? {
+        if (token.isNullOrBlank()) return null
+        return try {
+            val raw = if (token.contains(":")) token.substringAfter(":") else token
+            val parts = raw.trim().split(".")
+            if (parts.size >= 2) {
+                val pad = when (parts[1].length % 4) {
+                    2 -> "=="
+                    3 -> "="
+                    else -> ""
+                }
+                val decodedBytes = java.util.Base64.getUrlDecoder().decode(parts[1] + pad)
+                val decodedJson = String(decodedBytes, Charsets.UTF_8)
+                json.decodeFromString<FyersJwtPayload>(decodedJson)
+            } else {
+                null
+            }
+        } catch (_: Exception) {
+            null
+        }
+    }
+}
 
 @Serializable
 data class FyersQuotesResponse(

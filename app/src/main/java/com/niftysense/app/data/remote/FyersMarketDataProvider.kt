@@ -1,17 +1,22 @@
 package com.niftysense.app.data.remote
 
+import android.util.Log
 import com.niftysense.app.data.model.MarketIndexData
 import com.niftysense.app.data.model.MarketSnapshot
 import com.niftysense.app.data.model.MarketStatus
+import com.niftysense.app.data.remote.dto.FyersApiException
+import com.niftysense.app.data.remote.dto.FyersJwtDecoder
 import com.niftysense.app.data.remote.dto.FyersQuoteData
 import com.niftysense.app.data.remote.dto.FyersQuotesResponse
 import com.niftysense.app.data.repository.MarketDataProvider
+import com.niftysense.app.domain.usecase.Formatters
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.IOException
+import java.util.Date
 import java.util.concurrent.TimeUnit
 
 class FyersMarketDataProvider(
@@ -21,6 +26,12 @@ class FyersMarketDataProvider(
         .build(),
     private val credentialsProvider: () -> Pair<String?, String?>
 ) : MarketDataProvider {
+
+    companion object {
+        private const val TAG = "FyersMarketDataProvider"
+        const val NIFTY_SYMBOL = "NSE:NIFTY50-INDEX"
+        const val SENSEX_SYMBOL = "BSE:SENSEX-INDEX"
+    }
 
     override val providerName: String = "Fyers Live Real-time Broker Feed"
 
@@ -35,11 +46,6 @@ class FyersMarketDataProvider(
     private val primaryBaseUrl = "https://api-t1.fyers.in/data/quotes"
     private val secondaryBaseUrl = "https://api.fyers.in/data/quotes"
 
-    companion object {
-        const val NIFTY_SYMBOL = "NSE:NIFTY50-INDEX"
-        const val SENSEX_SYMBOL = "BSE:SENSEX-INDEX"
-    }
-
     /**
      * Resolves the proper authorization header from either separate (appId, token)
      * or a combined "APP_ID:ACCESS_TOKEN" string.
@@ -49,8 +55,11 @@ class FyersMarketDataProvider(
         if (trimmedToken.isEmpty()) return null
 
         // If the token itself already contains the colon (i.e. APP_ID:ACCESS_TOKEN), use it directly
-        if (trimmedToken.contains(":") && trimmedToken.length > 20) {
-            return trimmedToken
+        if (trimmedToken.contains(":")) {
+            val parts = trimmedToken.split(":", limit = 2)
+            if (parts.size == 2 && parts[0].isNotBlank() && parts[1].isNotBlank()) {
+                return trimmedToken
+            }
         }
 
         val trimmedAppId = appId?.trim()
@@ -58,24 +67,17 @@ class FyersMarketDataProvider(
             return "$trimmedAppId:$trimmedToken"
         }
 
-        // Auto-extract app_id from JWT payload if user only pasted raw access token
-        try {
-            val parts = trimmedToken.split(".")
-            if (parts.size >= 2) {
-                val pad = when (parts[1].length % 4) {
-                    2 -> "=="
-                    3 -> "="
-                    else -> ""
-                }
-                val decoded = String(java.util.Base64.getUrlDecoder().decode(parts[1] + pad), Charsets.UTF_8)
-                val appIdRegex = Regex(""""(?:app_id|client_id)"\s*:\s*"([^"]+)"""")
-                val match = appIdRegex.find(decoded)
-                val extracted = match?.groupValues?.get(1)
-                if (!extracted.isNullOrBlank()) {
-                    return "$extracted:$trimmedToken"
-                }
+        // Auto-extract app_id or fy_id from JWT payload if user only pasted raw access token
+        val jwt = FyersJwtDecoder.parse(trimmedToken)
+        if (jwt != null) {
+            val extractedAppId = jwt.app_id ?: jwt.client_id
+            if (!extractedAppId.isNullOrBlank()) {
+                return "$extractedAppId:$trimmedToken"
             }
-        } catch (_: Exception) {
+            val fyId = jwt.fy_id ?: jwt.user_id
+            if (!fyId.isNullOrBlank()) {
+                return "$fyId-100:$trimmedToken"
+            }
         }
 
         return trimmedToken
@@ -86,13 +88,40 @@ class FyersMarketDataProvider(
      * Returns a human-friendly string with live prices upon success.
      */
     suspend fun testConnection(appId: String?, token: String?): Result<String> = withContext(Dispatchers.IO) {
+        val trimmedToken = token?.trim()
+        if (trimmedToken.isNullOrBlank()) {
+            return@withContext Result.failure(IllegalArgumentException("Please enter your Fyers Access Token."))
+        }
+
+        // Check if token is expired before doing a network call
+        val jwt = FyersJwtDecoder.parse(trimmedToken)
+        if (jwt != null) {
+            val exp = jwt.exp
+            if (exp != null && exp > 0) {
+                val nowSec = System.currentTimeMillis() / 1000
+                if (exp < nowSec) {
+                    val expDateStr = java.text.SimpleDateFormat("dd MMM yyyy, HH:mm", java.util.Locale.getDefault()).format(Date(exp * 1000))
+                    return@withContext Result.failure(
+                        FyersApiException(
+                            code = -99,
+                            message = "Access token expired on $expDateStr. Fyers access tokens expire daily. Please generate a fresh token from your Fyers dashboard."
+                        )
+                    )
+                }
+            }
+        }
+
         val authHeader = resolveAuthHeader(appId, token)
             ?: return@withContext Result.failure(IllegalArgumentException("Please enter a valid Fyers Access Token."))
 
         runCatching {
-            val response = executeQuotesRequest(primaryBaseUrl, authHeader)
-                ?: executeQuotesRequest(secondaryBaseUrl, authHeader)
-                ?: throw IOException("Fyers server did not return a response.")
+            val response = try {
+                executeQuotesRequest(primaryBaseUrl, authHeader)
+            } catch (e: FyersApiException) {
+                throw e
+            } catch (e: Exception) {
+                executeQuotesRequest(secondaryBaseUrl, authHeader)
+            }
 
             val items = response.items
             if (items.isEmpty()) {
@@ -103,9 +132,9 @@ class FyersMarketDataProvider(
             val sensex = items.find { isSensex(it) }?.v?.lp ?: 0.0
 
             if (nifty > 0.0 && sensex > 0.0) {
-                "Connected to Fyers Live Feed! NIFTY: ${"%,.2f".format(nifty)} | SENSEX: ${"%,.2f".format(sensex)}"
+                "✓ Connected to Fyers Live Feed!\nNIFTY 50: ₹${Formatters.formatIndexValue(nifty)} | SENSEX: ₹${Formatters.formatIndexValue(sensex)}"
             } else {
-                "Fyers Authenticated successfully! (Indices will update during market hours)"
+                "✓ Fyers Authenticated successfully! (Indices will stream live prices during market hours)"
             }
         }
     }
@@ -116,12 +145,12 @@ class FyersMarketDataProvider(
             ?: return@withContext Result.failure(IllegalStateException("Fyers credentials are not configured."))
 
         runCatching {
-            val response = executeQuotesRequest(primaryBaseUrl, authHeader)
-                ?: executeQuotesRequest(secondaryBaseUrl, authHeader)
-                ?: throw IOException("Failed to connect to Fyers API endpoints.")
-
-            if (response.code != null && response.code != 200 && response.code != 204) {
-                throw IOException("Fyers API Error (${response.code}): ${response.message}")
+            val response = try {
+                executeQuotesRequest(primaryBaseUrl, authHeader)
+            } catch (e: FyersApiException) {
+                throw e
+            } catch (e: Exception) {
+                executeQuotesRequest(secondaryBaseUrl, authHeader)
             }
 
             val items = response.items
@@ -148,7 +177,7 @@ class FyersMarketDataProvider(
         }
     }
 
-    private fun executeQuotesRequest(baseUrl: String, authHeader: String): FyersQuotesResponse? {
+    private fun executeQuotesRequest(baseUrl: String, authHeader: String): FyersQuotesResponse {
         val url = "$baseUrl?symbols=$NIFTY_SYMBOL,$SENSEX_SYMBOL&_=${System.currentTimeMillis()}"
 
         val request = Request.Builder()
@@ -162,22 +191,27 @@ class FyersMarketDataProvider(
             .build()
 
         client.newCall(request).execute().use { response ->
-            if (response.code == 401 || response.code == 403) {
-                throw IOException("Fyers Token Expired or Invalid (HTTP ${response.code}). Please renew your token.")
-            }
-            if (response.code == 429) {
-                throw IOException("Fyers rate limit reached (HTTP 429). Please wait a moment.")
-            }
-            if (!response.isSuccessful) {
-                return null
+            val body = response.body?.string() ?: ""
+            val parsed = runCatching { json.decodeFromString<FyersQuotesResponse>(body) }.getOrNull()
+
+            if (!response.isSuccessful || parsed?.s == "error" || (parsed?.code != null && parsed.code != 200 && parsed.code != 204)) {
+                val errorCode = parsed?.code ?: response.code
+                val rawMsg = parsed?.message?.takeIf { it.isNotBlank() }
+                    ?: response.message.takeIf { it.isNotBlank() }
+                    ?: "HTTP ${response.code}"
+
+                val friendlyMsg = when (errorCode) {
+                    -15 -> "Please provide valid token. Note: Fyers requires format 'APP_ID:TOKEN' (e.g. YOUR_APP_ID-100:eyJ...). If you only pasted the token, please enter your App ID above."
+                    -99 -> "Token is expired. Fyers access tokens expire daily at 6:30 AM. Please generate a fresh token from your Fyers dashboard."
+                    401 -> "Authentication failed (HTTP 401): Please verify that your App ID and Access Token are correct."
+                    403 -> "Access forbidden (HTTP 403): Your Fyers app does not have permissions for data quotes."
+                    429 -> "Fyers rate limit reached (HTTP 429). Please wait a moment."
+                    else -> rawMsg
+                }
+                throw FyersApiException(code = errorCode, message = friendlyMsg)
             }
 
-            val body = response.body?.string() ?: return null
-            val parsed = json.decodeFromString<FyersQuotesResponse>(body)
-            if (parsed.s == "error" || (parsed.code != null && parsed.code != 200 && parsed.code != 204)) {
-                throw IOException(parsed.message ?: "Fyers API Error (${parsed.code})")
-            }
-            return parsed
+            return parsed ?: throw IOException("Empty response from Fyers server.")
         }
     }
 
@@ -208,13 +242,11 @@ class FyersMarketDataProvider(
         val openPrice = v.open_price ?: prevClose
 
         val lastUpdated = if (v.exch_feed_time != null && v.exch_feed_time > 0) {
-            // Fyers feed time is in seconds
             if (v.exch_feed_time < 10_000_000_000L) v.exch_feed_time * 1000L else v.exch_feed_time
         } else {
             System.currentTimeMillis()
         }
 
-        // Construct 5-point sparkline approximation from OHLC
         val sparkline = listOf(prevClose, openPrice, dayLow, dayHigh, currentPrice)
 
         return MarketIndexData(

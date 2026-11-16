@@ -73,6 +73,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.niftysense.app.data.remote.FyersWebSocketStatus
 import com.niftysense.app.presentation.theme.Emerald500
 import com.niftysense.app.presentation.theme.Rose500
 
@@ -89,6 +90,7 @@ fun SettingsScreen(
     val savedAppId by viewModel.fyersAppId.collectAsState()
     val savedToken by viewModel.fyersAccessToken.collectAsState()
     val testState by viewModel.fyersTestState.collectAsState()
+    val wsState by viewModel.fyersWebSocketState.collectAsState()
 
     var inputAppId by remember(savedAppId) { mutableStateOf(savedAppId ?: "") }
     var inputToken by remember(savedToken) { mutableStateOf(savedToken ?: "") }
@@ -177,15 +179,54 @@ fun SettingsScreen(
                 )
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Text(
-                        text = "Official Fyers Market Data Feed",
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Official Fyers Market Data Feed",
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+
+                        // WebSocket Live Status Badge
+                        if (!savedToken.isNullOrBlank()) {
+                            val (wsColor, wsLabel) = when (wsState.status) {
+                                FyersWebSocketStatus.STREAMING -> Pair(Emerald500, "WebSocket: Streaming")
+                                FyersWebSocketStatus.CONNECTING, FyersWebSocketStatus.AUTHENTICATING, FyersWebSocketStatus.SUBSCRIBED -> Pair(MaterialTheme.colorScheme.primary, "WebSocket: Connecting")
+                                FyersWebSocketStatus.ERROR -> Pair(Rose500, "WebSocket: Fallback")
+                                FyersWebSocketStatus.DISCONNECTED -> Pair(MaterialTheme.colorScheme.outline, "WebSocket: Idle")
+                            }
+
+                            Row(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(wsColor.copy(alpha = 0.12f))
+                                    .padding(horizontal = 8.dp, vertical = 3.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(6.dp)
+                                        .clip(CircleShape)
+                                        .background(wsColor)
+                                )
+                                Spacer(modifier = Modifier.width(5.dp))
+                                Text(
+                                    text = wsLabel,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = wsColor
+                                )
+                            }
+                        }
+                    }
+
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "Connect your Fyers account to stream sub-second broker ticks directly to your home-screen widget and app. Stays 100% within Fyers' Free Plan (2 symbols • zero API charges).",
+                        text = "Connect your Fyers account to stream live sub-second broker quotes via Data WebSocket & REST quotes. 100% Free Plan (2 symbols • zero API charges).",
                         fontSize = 12.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         lineHeight = 16.sp
@@ -193,12 +234,12 @@ fun SettingsScreen(
 
                     Spacer(modifier = Modifier.height(14.dp))
 
-                    // App ID input (optional if user enters combined token)
+                    // App ID input
                     OutlinedTextField(
                         value = inputAppId,
                         onValueChange = { inputAppId = it },
-                        label = { Text("Fyers App ID (e.g. XXXXXX-100)", fontSize = 12.sp) },
-                        placeholder = { Text("Optional if combined token is pasted", fontSize = 12.sp) },
+                        label = { Text("Fyers App ID (e.g. XC12345-100)", fontSize = 12.sp) },
+                        placeholder = { Text("e.g. XC12345-100 (from Fyers API Dashboard)", fontSize = 12.sp) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(10.dp),
@@ -214,7 +255,7 @@ fun SettingsScreen(
                     OutlinedTextField(
                         value = inputToken,
                         onValueChange = { inputToken = it },
-                        label = { Text("Fyers Access Token (or APP_ID:TOKEN)", fontSize = 12.sp) },
+                        label = { Text("Fyers Daily Access Token (or APP_ID:TOKEN)", fontSize = 12.sp) },
                         placeholder = { Text("Paste daily access token here", fontSize = 12.sp) },
                         singleLine = true,
                         visualTransformation = if (isTokenVisible) VisualTransformation.None else PasswordVisualTransformation(),
@@ -247,19 +288,28 @@ fun SettingsScreen(
                         Button(
                             onClick = {
                                 viewModel.saveFyersCredentials(inputAppId, inputToken, enabled = true)
-                                Toast.makeText(context, "Fyers Token Saved! Live broker feed active.", Toast.LENGTH_SHORT).show()
                             },
-                            enabled = inputToken.isNotBlank(),
+                            enabled = inputToken.isNotBlank() && !testState.isLoading,
                             shape = RoundedCornerShape(10.dp),
                             modifier = Modifier.weight(1.1f)
                         ) {
-                            Icon(
-                                imageVector = Icons.Rounded.Bolt,
-                                contentDescription = null,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(modifier = Modifier.width(5.dp))
-                            Text("Save & Apply", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            if (testState.isLoading) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(14.dp),
+                                    strokeWidth = 2.dp,
+                                    color = MaterialTheme.colorScheme.onPrimary
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Connecting…", fontSize = 11.5.sp)
+                            } else {
+                                Icon(
+                                    imageVector = Icons.Rounded.Bolt,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(5.dp))
+                                Text("Save & Apply", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            }
                         }
 
                         OutlinedButton(

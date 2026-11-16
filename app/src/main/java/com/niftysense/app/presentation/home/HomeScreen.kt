@@ -152,13 +152,14 @@ fun HomeScreen(
                 .padding(horizontal = 20.dp)
         ) {
             // Live Stream Provider Badge
+            val isWebSocket = snapshot?.sourceProvider?.contains("WebSocket", ignoreCase = true) == true
             val isFyers = snapshot?.sourceProvider?.contains("Fyers", ignoreCase = true) == true
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(10.dp))
                     .background(
-                        if (isFyers) Emerald500.copy(alpha = 0.1f)
+                        if (isFyers) Emerald500.copy(alpha = 0.12f)
                         else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
                     )
                     .clickable { onNavigateToSettings() }
@@ -175,7 +176,11 @@ fun HomeScreen(
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = if (isFyers) "FYERS BROKER STREAM" else "PUBLIC WEB FEED",
+                        text = when {
+                            isWebSocket -> "FYERS LIVE WEBSOCKET"
+                            isFyers -> "FYERS BROKER STREAM"
+                            else -> "PUBLIC WEB FEED"
+                        },
                         fontSize = 10.5.sp,
                         fontWeight = FontWeight.Bold,
                         color = if (isFyers) Emerald500 else MaterialTheme.colorScheme.onSurfaceVariant
@@ -183,7 +188,11 @@ fun HomeScreen(
                 }
 
                 Text(
-                    text = if (isFyers) "100% Free Limits Active" else "Tap to connect Fyers",
+                    text = when {
+                        isWebSocket -> "Sub-second live ticks"
+                        isFyers -> "100% Free Limits Active"
+                        else -> "Tap to connect Fyers"
+                    },
                     fontSize = 10.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
                 )

@@ -3,6 +3,7 @@ package com.niftysense.app.presentation.settings
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.niftysense.app.data.remote.FyersWebSocketState
 import com.niftysense.app.di.AppContainer
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -53,15 +54,14 @@ class SettingsViewModel(
         initialValue = false
     )
 
+    val fyersWebSocketState: StateFlow<FyersWebSocketState> = container.fyersWebSocketClient.connectionState
+
     private val _fyersTestState = MutableStateFlow(FyersTestState())
     val fyersTestState: StateFlow<FyersTestState> = _fyersTestState.asStateFlow()
 
     fun testFyersConnection(appId: String?, token: String?) {
         viewModelScope.launch {
-            if (!token.isNullOrBlank()) {
-                preferencesDataStore.saveFyersCredentials(appId, token, enabled = true)
-            }
-            _fyersTestState.value = FyersTestState(isLoading = true)
+            _fyersTestState.value = FyersTestState(isLoading = true, message = null)
             val result = container.fyersProvider.testConnection(appId, token)
             if (result.isSuccess) {
                 _fyersTestState.value = FyersTestState(
@@ -69,11 +69,40 @@ class SettingsViewModel(
                     message = result.getOrNull(),
                     isSuccess = true
                 )
+                // Attempt WebSocket live stream connection immediately
+                container.fyersWebSocketClient.connect(appId, token)
                 container.marketRepository.refresh()
             } else {
                 _fyersTestState.value = FyersTestState(
                     isLoading = false,
-                    message = result.exceptionOrNull()?.localizedMessage ?: "Connection failed (Falling back to normal public feed)",
+                    message = result.exceptionOrNull()?.localizedMessage ?: "Connection test failed",
+                    isSuccess = false
+                )
+            }
+        }
+    }
+
+    fun saveFyersCredentials(appId: String?, token: String?, enabled: Boolean = true) {
+        viewModelScope.launch {
+            _fyersTestState.value = FyersTestState(isLoading = true, message = "Verifying token with Fyers...")
+            val testResult = container.fyersProvider.testConnection(appId, token)
+
+            if (testResult.isSuccess) {
+                preferencesDataStore.saveFyersCredentials(appId, token, enabled = true)
+                container.fyersWebSocketClient.connect(appId, token)
+                _fyersTestState.value = FyersTestState(
+                    isLoading = false,
+                    message = "✓ Fyers Connected! Live broker data & WebSocket streaming active.\n${testResult.getOrNull()}",
+                    isSuccess = true
+                )
+                container.marketRepository.refresh()
+            } else {
+                // Save credentials locally so user does not lose text, but report verification issue
+                preferencesDataStore.saveFyersCredentials(appId, token, enabled = true)
+                val errorMsg = testResult.exceptionOrNull()?.localizedMessage ?: "Unknown error"
+                _fyersTestState.value = FyersTestState(
+                    isLoading = false,
+                    message = "Saved locally, but verification failed:\n$errorMsg\n\nApp will fallback to public web feed until a valid token is provided.",
                     isSuccess = false
                 )
                 container.marketRepository.refresh()
@@ -81,24 +110,13 @@ class SettingsViewModel(
         }
     }
 
-    fun saveFyersCredentials(appId: String?, token: String?, enabled: Boolean = true) {
-        viewModelScope.launch {
-            preferencesDataStore.saveFyersCredentials(appId, token, enabled)
-            _fyersTestState.value = FyersTestState(
-                isLoading = false,
-                message = "Fyers token saved! Streaming live broker data.",
-                isSuccess = true
-            )
-            container.marketRepository.refresh()
-        }
-    }
-
     fun clearFyersCredentials() {
         viewModelScope.launch {
             preferencesDataStore.clearFyersCredentials()
+            container.fyersWebSocketClient.disconnect()
             _fyersTestState.value = FyersTestState(
                 isLoading = false,
-                message = "Fyers token removed. Reverted to normal public web feed.",
+                message = "Fyers credentials cleared. Reverted to public web feed.",
                 isSuccess = null
             )
             container.marketRepository.refresh()

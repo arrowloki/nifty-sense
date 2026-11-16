@@ -7,6 +7,7 @@ import com.niftysense.app.data.repository.MarketDataProvider
 
 class SmartMarketDataProvider(
     val fyersProvider: FyersMarketDataProvider,
+    val fyersWebSocketClient: FyersWebSocketClient,
     val hybridProvider: HybridMarketDataProvider = HybridMarketDataProvider(),
     private val preferencesDataStore: MarketPreferencesDataStore
 ) : MarketDataProvider {
@@ -16,13 +17,19 @@ class SmartMarketDataProvider(
     }
 
     override val providerName: String
-        get() = "Smart Switching Market Feed (Fyers + Public Fallback)"
+        get() = "Smart Switching Market Feed (Fyers WebSocket + REST Quotes + Public Fallback)"
 
     override suspend fun fetchMarketSnapshot(): Result<MarketSnapshot> {
         val (_, token) = preferencesDataStore.getFyersCredentials()
 
         if (!token.isNullOrBlank()) {
-            // Fyers token is present! Pull live broker data from Fyers
+            // 1. Prioritize live sub-second Fyers WebSocket tick if fresh (< 45s)
+            val wsSnapshot = fyersWebSocketClient.getLatestSnapshotIfFresh(maxAgeMs = 45_000L)
+            if (wsSnapshot != null) {
+                return Result.success(wsSnapshot)
+            }
+
+            // 2. Query Fyers REST quotes API
             val fyersResult = fyersProvider.fetchMarketSnapshot()
             if (fyersResult.isSuccess) {
                 return fyersResult
@@ -32,7 +39,7 @@ class SmartMarketDataProvider(
             }
         }
 
-        // When token is absent or invalid, fetch normal way via public web feeds
+        // 3. Fallback to normal public web feeds
         return hybridProvider.fetchMarketSnapshot()
     }
 }

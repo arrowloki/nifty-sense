@@ -3,6 +3,7 @@ package com.niftysense.app.data.repository
 import android.content.Context
 import com.niftysense.app.data.local.MarketPreferencesDataStore
 import com.niftysense.app.data.model.MarketSnapshot
+import com.niftysense.app.data.remote.FyersWebSocketClient
 import com.niftysense.app.widget.provider.NiftySenseWidgetProvider
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -22,6 +23,7 @@ class MarketRepository(
     private val context: Context,
     private val dataProvider: MarketDataProvider,
     private val preferencesDataStore: MarketPreferencesDataStore,
+    private val fyersWebSocketClient: FyersWebSocketClient? = null,
     private val repositoryScope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 ) {
 
@@ -37,6 +39,30 @@ class MarketRepository(
             }
             // Trigger fresh background fetch on startup
             refresh()
+        }
+
+        // Initialize and listen to real-time Fyers WebSocket ticks
+        if (fyersWebSocketClient != null) {
+            repositoryScope.launch {
+                val (appId, token) = preferencesDataStore.getFyersCredentials()
+                if (!token.isNullOrBlank()) {
+                    fyersWebSocketClient.connect(appId, token)
+                }
+            }
+
+            repositoryScope.launch {
+                fyersWebSocketClient.liveSnapshotFlow.collect { freshSnapshot ->
+                    if (freshSnapshot != null) {
+                        preferencesDataStore.saveSnapshot(freshSnapshot)
+                        _uiState.value = MarketUiState(
+                            snapshot = freshSnapshot,
+                            isLoading = false,
+                            errorMessage = null
+                        )
+                        NiftySenseWidgetProvider.updateAllWidgets(context, freshSnapshot)
+                    }
+                }
+            }
         }
     }
 

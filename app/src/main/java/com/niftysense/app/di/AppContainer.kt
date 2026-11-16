@@ -8,6 +8,7 @@ import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import com.niftysense.app.data.local.MarketPreferencesDataStore
 import com.niftysense.app.data.remote.FyersMarketDataProvider
+import com.niftysense.app.data.remote.FyersWebSocketClient
 import com.niftysense.app.data.remote.HybridMarketDataProvider
 import com.niftysense.app.data.remote.SmartMarketDataProvider
 import com.niftysense.app.data.repository.MarketDataProvider
@@ -20,6 +21,10 @@ class AppContainer(val context: Context) {
 
     val preferencesDataStore: MarketPreferencesDataStore by lazy {
         MarketPreferencesDataStore(context)
+    }
+
+    val fyersWebSocketClient: FyersWebSocketClient by lazy {
+        FyersWebSocketClient()
     }
 
     val fyersProvider: FyersMarketDataProvider by lazy {
@@ -35,6 +40,7 @@ class AppContainer(val context: Context) {
     val dataProvider: MarketDataProvider by lazy {
         SmartMarketDataProvider(
             fyersProvider = fyersProvider,
+            fyersWebSocketClient = fyersWebSocketClient,
             hybridProvider = HybridMarketDataProvider(),
             preferencesDataStore = preferencesDataStore
         )
@@ -44,7 +50,8 @@ class AppContainer(val context: Context) {
         MarketRepository(
             context = context,
             dataProvider = dataProvider,
-            preferencesDataStore = preferencesDataStore
+            preferencesDataStore = preferencesDataStore,
+            fyersWebSocketClient = fyersWebSocketClient
         )
     }
 
@@ -58,14 +65,17 @@ class AppContainer(val context: Context) {
             .build()
 
         val periodicRequest = PeriodicWorkRequestBuilder<MarketUpdateWorker>(
-            intervalMinutes.toLong().coerceAtLeast(15L),
+            intervalMinutes.toLong().coerceAtLeast(15),
+            TimeUnit.MINUTES,
+            5,
             TimeUnit.MINUTES
         )
             .setConstraints(constraints)
+            .addTag("market_update_periodic")
             .build()
 
         workManager.enqueueUniquePeriodicWork(
-            MarketUpdateWorker.WORK_NAME,
+            "market_update_periodic",
             ExistingPeriodicWorkPolicy.UPDATE,
             periodicRequest
         )
