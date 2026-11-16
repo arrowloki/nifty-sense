@@ -150,4 +150,64 @@ class FyersMarketDataProviderTest {
         assertEquals("BSE:SENSEX-INDEX", sensex!!.n)
         assertEquals(79500.50, sensex.v!!.lp!!, 0.01)
     }
+
+    @Test
+    fun testTokenSanitizer_ExtractsAuthCodeFromUrl() {
+        val url = "https://trade.fyers.in/api-login/redirect-uri/index.html?s=ok&code=200&auth_code=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.sample_payload.sig"
+        val extracted = com.niftysense.app.data.remote.dto.FyersTokenSanitizer.cleanToken(url)
+        assertEquals("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.sample_payload.sig", extracted)
+    }
+
+    @Test
+    fun testTokenSanitizer_StripsQuotesAndBearer() {
+        val dirty = "  \"Bearer eyJsample_token_content\"  \n"
+        val cleaned = com.niftysense.app.data.remote.dto.FyersTokenSanitizer.cleanToken(dirty)
+        assertEquals("eyJsample_token_content", cleaned)
+    }
+
+    @Test
+    fun testAppIdSanitizer_StripsColonsAndQuotes() {
+        val dirty = " \"XC12345-100:\" "
+        val cleaned = com.niftysense.app.data.remote.dto.FyersTokenSanitizer.cleanAppId(dirty)
+        assertEquals("XC12345-100", cleaned)
+    }
+
+    @Test
+    fun testComputeFyersAppIdHash() {
+        val hash = com.niftysense.app.data.remote.dto.computeFyersAppIdHash("XC12345-100", "MY_SECRET_KEY")
+        // Check standard 64-char lowercase hex string
+        assertEquals(64, hash.length)
+        assertTrue(hash.all { it in '0'..'9' || it in 'a'..'f' })
+    }
+
+    @Test
+    fun testBuildCandidateAuthHeaders_AppIdWithout100Adds100() {
+        val candidates = provider.buildCandidateAuthHeaders(
+            appId = "XC12345",
+            token = "dummy_token_xyz",
+            jwt = null
+        )
+        // Candidate list should have XC12345-100 prioritized before XC12345
+        assertTrue(candidates.any { it.authHeader == "XC12345-100:dummy_token_xyz" })
+        assertTrue(candidates.any { it.authHeader == "XC12345:dummy_token_xyz" })
+        assertEquals("XC12345-100:dummy_token_xyz", candidates.first().authHeader)
+    }
+
+    @Test
+    fun testJwtPayload_IsAuthCodeDetection() {
+        val authCodePayload = com.niftysense.app.data.remote.dto.FyersJwtPayload(
+            sub = "auth_code",
+            exp = 1718012000L,
+            iat = 1718011700L // 300 sec duration
+        )
+        assertTrue(authCodePayload.isAuthCode())
+
+        val accessTokenPayload = com.niftysense.app.data.remote.dto.FyersJwtPayload(
+            sub = "access_token",
+            hsm_key = "SAMPLE_HSM_KEY",
+            exp = 1718098000L,
+            iat = 1718011700L
+        )
+        org.junit.Assert.assertFalse(accessTokenPayload.isAuthCode())
+    }
 }

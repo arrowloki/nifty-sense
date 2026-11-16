@@ -5,6 +5,7 @@ import com.niftysense.app.data.model.MarketIndexData
 import com.niftysense.app.data.model.MarketSnapshot
 import com.niftysense.app.data.model.MarketStatus
 import com.niftysense.app.data.remote.dto.FyersJwtDecoder
+import com.niftysense.app.data.remote.dto.FyersTokenSanitizer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -85,8 +86,8 @@ class FyersWebSocketClient(
         isExplicitlyDisconnected = false
         reconnectJob?.cancel()
 
-        val trimmedToken = token?.trim()
-        if (trimmedToken.isNullOrBlank()) {
+        val cleanedToken = FyersTokenSanitizer.cleanToken(token)
+        if (cleanedToken.isBlank()) {
             _connectionState.value = FyersWebSocketState(
                 status = FyersWebSocketStatus.ERROR,
                 message = "Access token is empty"
@@ -95,9 +96,16 @@ class FyersWebSocketClient(
         }
 
         // Decode HSM key from JWT payload
-        val jwt = FyersJwtDecoder.parse(trimmedToken)
-        val hsmKey = jwt?.hsm_key
+        val jwt = FyersJwtDecoder.parse(cleanedToken)
+        if (jwt != null && jwt.isAuthCode()) {
+            _connectionState.value = FyersWebSocketState(
+                status = FyersWebSocketStatus.ERROR,
+                message = "Token is an Auth Code. Please convert to Access Token."
+            )
+            return
+        }
 
+        val hsmKey = jwt?.hsm_key
         if (hsmKey.isNullOrBlank()) {
             Log.w(TAG, "JWT payload does not contain 'hsm_key'. Falling back to REST quotes.")
             _connectionState.value = FyersWebSocketState(

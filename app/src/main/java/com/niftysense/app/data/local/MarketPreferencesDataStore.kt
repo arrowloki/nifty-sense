@@ -35,6 +35,8 @@ class MarketPreferencesDataStore(private val context: Context) {
         // Fyers Broker Integration Keys
         private val KEY_FYERS_APP_ID = stringPreferencesKey("fyers_app_id")
         private val KEY_FYERS_ACCESS_TOKEN = stringPreferencesKey("fyers_access_token")
+        private val KEY_FYERS_SECRET_KEY = stringPreferencesKey("fyers_secret_key")
+        private val KEY_FYERS_REDIRECT_URI = stringPreferencesKey("fyers_redirect_uri")
         private val KEY_FYERS_ENABLED = booleanPreferencesKey("fyers_enabled")
 
         // Live Foreground Streaming Service Keys
@@ -94,6 +96,14 @@ class MarketPreferencesDataStore(private val context: Context) {
         prefs[KEY_FYERS_ACCESS_TOKEN]?.takeIf { it.isNotBlank() }
     }
 
+    val fyersSecretKeyFlow: Flow<String?> = context.dataStore.data.map { prefs ->
+        prefs[KEY_FYERS_SECRET_KEY]?.takeIf { it.isNotBlank() }
+    }
+
+    val fyersRedirectUriFlow: Flow<String> = context.dataStore.data.map { prefs ->
+        prefs[KEY_FYERS_REDIRECT_URI]?.takeIf { it.isNotBlank() } ?: "https://trade.fyers.in/api-login/redirect-uri/index.html"
+    }
+
     val fyersEnabledFlow: Flow<Boolean> = context.dataStore.data.map { prefs ->
         prefs[KEY_FYERS_ENABLED] ?: false
     }
@@ -109,11 +119,42 @@ class MarketPreferencesDataStore(private val context: Context) {
         }
     }
 
-    suspend fun saveFyersCredentials(appId: String?, token: String?, enabled: Boolean = true) {
+    suspend fun getFyersSecretKey(): String? {
+        val prefs = context.dataStore.data.first()
+        return prefs[KEY_FYERS_SECRET_KEY]?.takeIf { it.isNotBlank() }
+    }
+
+    suspend fun saveFyersCredentials(
+        appId: String?,
+        token: String?,
+        secretKey: String? = null,
+        enabled: Boolean = true
+    ) {
         context.dataStore.edit { prefs ->
             if (!appId.isNullOrBlank()) prefs[KEY_FYERS_APP_ID] = appId.trim() else prefs.remove(KEY_FYERS_APP_ID)
             if (!token.isNullOrBlank()) prefs[KEY_FYERS_ACCESS_TOKEN] = token.trim() else prefs.remove(KEY_FYERS_ACCESS_TOKEN)
+            if (!secretKey.isNullOrBlank()) prefs[KEY_FYERS_SECRET_KEY] = secretKey.trim()
             prefs[KEY_FYERS_ENABLED] = enabled && !token.isNullOrBlank()
+        }
+    }
+
+    suspend fun saveFyersSecretKey(secretKey: String?) {
+        context.dataStore.edit { prefs ->
+            if (!secretKey.isNullOrBlank()) {
+                prefs[KEY_FYERS_SECRET_KEY] = secretKey.trim()
+            } else {
+                prefs.remove(KEY_FYERS_SECRET_KEY)
+            }
+        }
+    }
+
+    suspend fun saveFyersRedirectUri(uri: String) {
+        context.dataStore.edit { prefs ->
+            if (uri.isNotBlank()) {
+                prefs[KEY_FYERS_REDIRECT_URI] = uri.trim()
+            } else {
+                prefs.remove(KEY_FYERS_REDIRECT_URI)
+            }
         }
     }
 
@@ -121,6 +162,7 @@ class MarketPreferencesDataStore(private val context: Context) {
         context.dataStore.edit { prefs ->
             prefs.remove(KEY_FYERS_APP_ID)
             prefs.remove(KEY_FYERS_ACCESS_TOKEN)
+            prefs.remove(KEY_FYERS_SECRET_KEY)
             prefs[KEY_FYERS_ENABLED] = false
         }
     }

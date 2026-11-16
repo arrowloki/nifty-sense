@@ -1,8 +1,19 @@
 package com.niftysense.app.presentation.settings
 
+import android.graphics.Bitmap
+import android.net.Uri
+import android.view.ViewGroup
+import android.webkit.CookieManager
+import android.webkit.WebResourceRequest
+import android.webkit.WebView
+import android.webkit.WebViewClient
 import android.widget.Toast
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -22,22 +33,25 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.rounded.BatteryChargingFull
 import androidx.compose.material.icons.rounded.Bolt
 import androidx.compose.material.icons.rounded.CheckCircle
-import androidx.compose.material.icons.rounded.ContentPaste
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.DarkMode
 import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.ErrorOutline
+import androidx.compose.material.icons.rounded.ExpandLess
+import androidx.compose.material.icons.rounded.ExpandMore
+import androidx.compose.material.icons.rounded.HelpOutline
 import androidx.compose.material.icons.rounded.Key
 import androidx.compose.material.icons.rounded.LightMode
 import androidx.compose.material.icons.rounded.PictureInPictureAlt
+import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Security
 import androidx.compose.material.icons.rounded.SettingsBrightness
 import androidx.compose.material.icons.rounded.Sync
+import androidx.compose.material.icons.rounded.Transform
 import androidx.compose.material.icons.rounded.Visibility
 import androidx.compose.material.icons.rounded.VisibilityOff
-import androidx.compose.material.icons.rounded.Widgets
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -50,11 +64,10 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -66,13 +79,15 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.niftysense.app.data.remote.FyersWebSocketStatus
 import com.niftysense.app.presentation.theme.Emerald500
 import com.niftysense.app.presentation.theme.Rose500
@@ -89,12 +104,38 @@ fun SettingsScreen(
 
     val savedAppId by viewModel.fyersAppId.collectAsState()
     val savedToken by viewModel.fyersAccessToken.collectAsState()
+    val savedSecretKey by viewModel.fyersSecretKey.collectAsState()
+    val savedRedirectUri by viewModel.fyersRedirectUri.collectAsState()
     val testState by viewModel.fyersTestState.collectAsState()
     val wsState by viewModel.fyersWebSocketState.collectAsState()
 
     var inputAppId by remember(savedAppId) { mutableStateOf(savedAppId ?: "") }
     var inputToken by remember(savedToken) { mutableStateOf(savedToken ?: "") }
+    var inputSecretKey by remember(savedSecretKey) { mutableStateOf(savedSecretKey ?: "") }
     var isTokenVisible by remember { mutableStateOf(false) }
+    var isSecretVisible by remember { mutableStateOf(false) }
+
+    var showOAuthDialog by remember { mutableStateOf(false) }
+    var showAuthCodeConverter by remember { mutableStateOf(false) }
+    var showStepByStepGuide by remember { mutableStateOf(false) }
+    var authCodeOrUrlInput by remember { mutableStateOf("") }
+
+    // In-App Fyers OAuth Login Dialog
+    if (showOAuthDialog) {
+        FyersOAuthLoginDialog(
+            appId = inputAppId,
+            redirectUri = savedRedirectUri,
+            onDismiss = { showOAuthDialog = false },
+            onAuthCodeReceived = { authCode ->
+                showOAuthDialog = false
+                viewModel.exchangeAndSaveToken(
+                    appId = inputAppId,
+                    secretKey = inputSecretKey,
+                    authCodeOrUrl = authCode
+                )
+            }
+        )
+    }
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -234,6 +275,168 @@ fun SettingsScreen(
 
                     Spacer(modifier = Modifier.height(14.dp))
 
+                    // ==============================================================
+                    // --- 1-TAP LOGIN & MOBILE TOKEN TOOLBAR ---
+                    // ==============================================================
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Button(
+                            onClick = {
+                                if (inputAppId.isBlank()) {
+                                    Toast.makeText(context, "Please enter your Fyers App ID first (e.g. XC12345-100)", Toast.LENGTH_SHORT).show()
+                                } else if (inputSecretKey.isBlank()) {
+                                    Toast.makeText(context, "Please enter your App Secret Key below for 1-Tap Login", Toast.LENGTH_SHORT).show()
+                                } else {
+                                    showOAuthDialog = true
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                            ),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.weight(1.2f)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Bolt,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(5.dp))
+                            Text("⚡ 1-Tap Login", fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
+                        }
+
+                        OutlinedButton(
+                            onClick = { showAuthCodeConverter = !showAuthCodeConverter },
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Transform,
+                                contentDescription = null,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Convert Code", fontSize = 11.sp)
+                        }
+
+                        IconButton(
+                            onClick = { showStepByStepGuide = !showStepByStepGuide },
+                            modifier = Modifier.size(40.dp)
+                        ) {
+                            Icon(
+                                imageVector = if (showStepByStepGuide) Icons.Rounded.ExpandLess else Icons.Rounded.HelpOutline,
+                                contentDescription = "Setup Guide",
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+
+                    // --- EXPANDABLE: Step-by-Step Setup Guide ---
+                    AnimatedVisibility(
+                        visible = showStepByStepGuide,
+                        enter = fadeIn() + expandVertically(),
+                        exit = fadeOut() + shrinkVertically()
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 10.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                                .padding(12.dp)
+                        ) {
+                            Text(
+                                text = "📖 How to connect Fyers on Mobile (100% Free):",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(
+                                text = "1. Visit myapi.fyers.in & log in with your Fyers credentials.\n" +
+                                        "2. Create App: Set App Name to 'NiftySense' and Redirect URI to 'https://trade.fyers.in/api-login/redirect-uri/index.html'.\n" +
+                                        "3. Copy your App ID (e.g. XC12345-100) and Secret Key into the fields below.\n" +
+                                        "4. Tap '⚡ 1-Tap Login' above: Log in with Mobile/OTP/PIN once, and NiftySense automatically generates your daily Access Token and connects live streaming!\n\n" +
+                                        "💡 Why did your token show 'invalid'? Fyers' web login URL provides a temporary 'auth_code' (valid 2 mins), not an Access Token. Our 1-Tap Login or 'Convert Code' button converts it automatically!",
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                lineHeight = 16.sp
+                            )
+                        }
+                    }
+
+                    // --- EXPANDABLE: Convert Auth Code / URL Tool ---
+                    AnimatedVisibility(
+                        visible = showAuthCodeConverter,
+                        enter = fadeIn() + expandVertically(),
+                        exit = fadeOut() + shrinkVertically()
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 10.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.05f))
+                                .padding(12.dp)
+                        ) {
+                            Text(
+                                text = "🔄 Convert Auth Code or Browser URL to Access Token:",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "Paste either the full browser address bar URL (e.g. https://trade.fyers.in/...auth_code=eyJ...) or the raw auth_code string here:",
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            OutlinedTextField(
+                                value = authCodeOrUrlInput,
+                                onValueChange = { authCodeOrUrlInput = it },
+                                label = { Text("Paste Auth Code or Redirect URL", fontSize = 11.5.sp) },
+                                placeholder = { Text("https://trade.fyers.in/...auth_code=eyJ...", fontSize = 11.sp) },
+                                singleLine = false,
+                                maxLines = 3,
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(8.dp)
+                            )
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            Button(
+                                onClick = {
+                                    if (inputAppId.isBlank()) {
+                                        Toast.makeText(context, "Please enter your App ID first", Toast.LENGTH_SHORT).show()
+                                    } else if (inputSecretKey.isBlank()) {
+                                        Toast.makeText(context, "Please enter your App Secret Key below", Toast.LENGTH_SHORT).show()
+                                    } else if (authCodeOrUrlInput.isBlank()) {
+                                        Toast.makeText(context, "Please paste the Auth Code or URL first", Toast.LENGTH_SHORT).show()
+                                    } else {
+                                        viewModel.exchangeAndSaveToken(
+                                            appId = inputAppId,
+                                            secretKey = inputSecretKey,
+                                            authCodeOrUrl = authCodeOrUrlInput
+                                        )
+                                    }
+                                },
+                                enabled = authCodeOrUrlInput.isNotBlank() && !testState.isLoading,
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text("Convert & Connect Live Feed", fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
                     // App ID input
                     OutlinedTextField(
                         value = inputAppId,
@@ -251,12 +454,44 @@ fun SettingsScreen(
 
                     Spacer(modifier = Modifier.height(10.dp))
 
+                    // Secret Key input (optional, enables 1-tap re-login)
+                    OutlinedTextField(
+                        value = inputSecretKey,
+                        onValueChange = {
+                            inputSecretKey = it
+                            viewModel.saveFyersSecretKey(it)
+                        },
+                        label = { Text("Fyers App Secret Key (for 1-Tap Login)", fontSize = 12.sp) },
+                        placeholder = { Text("Secret Key from myapi.fyers.in dashboard", fontSize = 12.sp) },
+                        singleLine = true,
+                        visualTransformation = if (isSecretVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                        trailingIcon = {
+                            IconButton(onClick = { isSecretVisible = !isSecretVisible }) {
+                                Icon(
+                                    imageVector = if (isSecretVisible) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility,
+                                    contentDescription = if (isSecretVisible) "Hide secret" else "Show secret",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = MaterialTheme.colorScheme.primary,
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)
+                        )
+                    )
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
                     // Access Token input
                     OutlinedTextField(
                         value = inputToken,
                         onValueChange = { inputToken = it },
-                        label = { Text("Fyers Daily Access Token (or APP_ID:TOKEN)", fontSize = 12.sp) },
-                        placeholder = { Text("Paste daily access token here", fontSize = 12.sp) },
+                        label = { Text("Daily Access Token (or APP_ID:TOKEN)", fontSize = 12.sp) },
+                        placeholder = { Text("Auto-filled via 1-Tap Login, or paste here", fontSize = 12.sp) },
                         singleLine = true,
                         visualTransformation = if (isTokenVisible) VisualTransformation.None else PasswordVisualTransformation(),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
@@ -287,7 +522,12 @@ fun SettingsScreen(
                     ) {
                         Button(
                             onClick = {
-                                viewModel.saveFyersCredentials(inputAppId, inputToken, enabled = true)
+                                viewModel.saveFyersCredentials(
+                                    appId = inputAppId,
+                                    token = inputToken,
+                                    secretKey = inputSecretKey,
+                                    enabled = true
+                                )
                             },
                             enabled = inputToken.isNotBlank() && !testState.isLoading,
                             shape = RoundedCornerShape(10.dp),
@@ -345,6 +585,7 @@ fun SettingsScreen(
                                     viewModel.clearFyersCredentials()
                                     inputToken = ""
                                     inputAppId = ""
+                                    inputSecretKey = ""
                                     Toast.makeText(context, "Fyers disconnected. Reverted to normal public feed.", Toast.LENGTH_SHORT).show()
                                 },
                                 shape = RoundedCornerShape(10.dp)
@@ -625,6 +866,142 @@ fun SettingsScreen(
             }
 
             Spacer(modifier = Modifier.height(30.dp))
+        }
+    }
+}
+
+/**
+ * In-App Full-Screen Dialog hosting Android WebView for Fyers OAuth 2.0 Login.
+ * Automatically intercepts the redirect containing the auth_code and hands it to caller.
+ */
+@Composable
+fun FyersOAuthLoginDialog(
+    appId: String,
+    redirectUri: String,
+    onDismiss: () -> Unit,
+    onAuthCodeReceived: (authCode: String) -> Unit
+) {
+    var webViewInstance by remember { mutableStateOf<WebView?>(null) }
+    var isLoadingPage by remember { mutableStateOf(true) }
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Surface(
+            modifier = Modifier.fillMaxSize(),
+            color = MaterialTheme.colorScheme.background
+        ) {
+            Column(modifier = Modifier.fillMaxSize()) {
+                // Top Bar
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(onClick = onDismiss) {
+                            Icon(Icons.Rounded.Close, contentDescription = "Close")
+                        }
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Column {
+                            Text(
+                                text = "Fyers Official Login",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 15.sp,
+                                color = MaterialTheme.colorScheme.onBackground
+                            )
+                            Text(
+                                text = "Secure direct login to Fyers servers",
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (isLoadingPage) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(18.dp),
+                                strokeWidth = 2.dp,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                        }
+                        IconButton(onClick = { webViewInstance?.reload() }) {
+                            Icon(Icons.Rounded.Refresh, contentDescription = "Reload")
+                        }
+                    }
+                }
+
+                // WebView
+                Box(modifier = Modifier.fillMaxSize()) {
+                    AndroidView(
+                        factory = { ctx ->
+                            WebView(ctx).apply {
+                                layoutParams = ViewGroup.LayoutParams(
+                                    ViewGroup.LayoutParams.MATCH_PARENT,
+                                    ViewGroup.LayoutParams.MATCH_PARENT
+                                )
+                                settings.javaScriptEnabled = true
+                                settings.domStorageEnabled = true
+                                settings.useWideViewPort = true
+                                settings.loadWithOverviewMode = true
+                                settings.userAgentString = "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36"
+
+                                val cookieManager = CookieManager.getInstance()
+                                cookieManager.setAcceptCookie(true)
+                                cookieManager.setAcceptThirdPartyCookies(this, true)
+
+                                webViewClient = object : WebViewClient() {
+                                    override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
+                                        val url = request?.url?.toString() ?: return false
+                                        return handleInterceptUrl(url)
+                                    }
+
+                                    @Deprecated("Deprecated in Java")
+                                    override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
+                                        return handleInterceptUrl(url ?: "")
+                                    }
+
+                                    override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
+                                        super.onPageStarted(view, url, favicon)
+                                        isLoadingPage = true
+                                        handleInterceptUrl(url ?: "")
+                                    }
+
+                                    override fun onPageFinished(view: WebView?, url: String?) {
+                                        super.onPageFinished(view, url)
+                                        isLoadingPage = false
+                                    }
+
+                                    private fun handleInterceptUrl(url: String): Boolean {
+                                        if (url.startsWith(redirectUri, ignoreCase = true) || url.contains("auth_code=")) {
+                                            val uri = runCatching { Uri.parse(url) }.getOrNull()
+                                            val authCode = uri?.getQueryParameter("auth_code")
+                                                ?: uri?.getQueryParameter("code")
+                                            if (!authCode.isNullOrBlank()) {
+                                                onAuthCodeReceived(authCode)
+                                                return true
+                                            }
+                                        }
+                                        return false
+                                    }
+                                }
+
+                                val normalizedAppId = if (!appId.contains("-")) "$appId-100" else appId
+                                val encodedRedirect = java.net.URLEncoder.encode(redirectUri, "UTF-8")
+                                val loginUrl = "https://api-t1.fyers.in/api/v3/generate-authcode?client_id=$normalizedAppId&redirect_uri=$encodedRedirect&response_type=code&state=niftysense"
+                                loadUrl(loginUrl)
+                                webViewInstance = this
+                            }
+                        },
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
+            }
         }
     }
 }
