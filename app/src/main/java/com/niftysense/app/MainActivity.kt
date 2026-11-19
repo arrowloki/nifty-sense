@@ -1,6 +1,8 @@
 package com.niftysense.app
 
+import android.Manifest
 import android.app.PictureInPictureParams
+import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.os.Build
 import android.os.Bundle
@@ -8,7 +10,10 @@ import android.util.Rational
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.core.content.ContextCompat
+import com.niftysense.app.widget.lockscreen.LockScreenTickerManager
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.collectAsState
@@ -27,11 +32,26 @@ import com.niftysense.app.presentation.settings.SettingsViewModel
 import com.niftysense.app.presentation.theme.NiftySenseTheme
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
 
     private var isInPipMode by mutableStateOf(false)
+
+    private val notificationPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            val app = application as? NiftySenseApp
+            app?.container?.marketRepository?.let { repo ->
+                CoroutineScope(Dispatchers.IO).launch {
+                    val snapshot = repo.getCachedOrFreshSnapshot()
+                    LockScreenTickerManager.updateNotification(this@MainActivity, snapshot, true)
+                }
+            }
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -39,6 +59,18 @@ class MainActivity : ComponentActivity() {
 
         val app = application as NiftySenseApp
         val container = app.container
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
+        }
+
+        CoroutineScope(Dispatchers.IO).launch {
+            val snapshot = container.marketRepository.getCachedOrFreshSnapshot()
+            val isLockScreenEnabled = container.preferencesDataStore.lockScreenTickerEnabledFlow.first()
+            LockScreenTickerManager.updateNotification(this@MainActivity, snapshot, isLockScreenEnabled)
+        }
 
         updatePipParams()
 

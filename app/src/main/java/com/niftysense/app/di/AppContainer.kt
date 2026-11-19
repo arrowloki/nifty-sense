@@ -14,6 +14,7 @@ import com.niftysense.app.data.remote.SmartMarketDataProvider
 import com.niftysense.app.data.repository.MarketDataProvider
 import com.niftysense.app.data.repository.MarketRepository
 import com.niftysense.app.widget.worker.MarketUpdateWorker
+import com.niftysense.app.widget.worker.WidgetUpdateScheduler
 import kotlinx.coroutines.runBlocking
 import java.util.concurrent.TimeUnit
 
@@ -79,5 +80,8 @@ class AppContainer(val context: Context) {
             ExistingPeriodicWorkPolicy.UPDATE,
             periodicRequest
         )
+
+        // Schedule repeating alarm to ensure widgets update reliably during trading hours
+        WidgetUpdateScheduler.scheduleRepeatingAlarm(context, intervalMinutes)
     }
 }

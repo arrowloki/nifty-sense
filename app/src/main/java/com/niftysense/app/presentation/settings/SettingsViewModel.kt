@@ -67,6 +67,12 @@ class SettingsViewModel(
         initialValue = false
     )
 
+    val lockScreenTickerEnabled: StateFlow<Boolean> = preferencesDataStore.lockScreenTickerEnabledFlow.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = true
+    )
+
     val fyersWebSocketState: StateFlow<FyersWebSocketState> = container.fyersWebSocketClient.connectionState
 
     private val _fyersTestState = MutableStateFlow(FyersTestState())
@@ -188,6 +194,18 @@ class SettingsViewModel(
         viewModelScope.launch {
             preferencesDataStore.setRefreshInterval(minutes)
             container.schedulePeriodicMarketUpdates(minutes)
+        }
+    }
+
+    fun setLockScreenTickerEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            preferencesDataStore.setLockScreenTickerEnabled(enabled)
+            val current = container.marketRepository.getCachedOrFreshSnapshot()
+            com.niftysense.app.widget.lockscreen.LockScreenTickerManager.updateNotification(
+                container.context,
+                current,
+                enabled
+            )
         }
     }
 

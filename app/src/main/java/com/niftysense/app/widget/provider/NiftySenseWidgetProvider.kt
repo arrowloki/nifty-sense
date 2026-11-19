@@ -41,6 +41,34 @@ open class NiftySenseWidgetProvider : AppWidgetProvider() {
                 appWidgetManager.updateAppWidget(largeIds, views)
             }
         }
+
+        fun showRefreshingState(context: Context) {
+            val appWidgetManager = AppWidgetManager.getInstance(context)
+
+            val smallComponent = ComponentName(context, SmallWidgetProvider::class.java)
+            val smallIds = appWidgetManager.getAppWidgetIds(smallComponent)
+            if (smallIds != null && smallIds.isNotEmpty()) {
+                val views = android.widget.RemoteViews(context.packageName, com.niftysense.app.R.layout.widget_small)
+                views.setTextViewText(com.niftysense.app.R.id.tv_small_timestamp, "Updating live rates…")
+                appWidgetManager.partiallyUpdateAppWidget(smallIds, views)
+            }
+
+            val mediumComponent = ComponentName(context, MediumWidgetProvider::class.java)
+            val mediumIds = appWidgetManager.getAppWidgetIds(mediumComponent)
+            if (mediumIds != null && mediumIds.isNotEmpty()) {
+                val views = android.widget.RemoteViews(context.packageName, com.niftysense.app.R.layout.widget_medium)
+                views.setTextViewText(com.niftysense.app.R.id.tv_medium_timestamp, "• Updating live rates…")
+                appWidgetManager.partiallyUpdateAppWidget(mediumIds, views)
+            }
+
+            val largeComponent = ComponentName(context, LargeWidgetProvider::class.java)
+            val largeIds = appWidgetManager.getAppWidgetIds(largeComponent)
+            if (largeIds != null && largeIds.isNotEmpty()) {
+                val views = android.widget.RemoteViews(context.packageName, com.niftysense.app.R.layout.widget_large)
+                views.setTextViewText(com.niftysense.app.R.id.tv_large_timestamp, "• Updating live rates…")
+                appWidgetManager.partiallyUpdateAppWidget(largeIds, views)
+            }
+        }
     }
 
     override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) {

@@ -65,6 +65,8 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -108,6 +110,7 @@ fun SettingsScreen(
     val savedRedirectUri by viewModel.fyersRedirectUri.collectAsState()
     val testState by viewModel.fyersTestState.collectAsState()
     val wsState by viewModel.fyersWebSocketState.collectAsState()
+    val isLockScreenTickerEnabled by viewModel.lockScreenTickerEnabled.collectAsState()
 
     var inputAppId by remember(savedAppId) { mutableStateOf(savedAppId ?: "") }
     var inputToken by remember(savedToken) { mutableStateOf(savedToken ?: "") }
@@ -757,6 +760,84 @@ fun SettingsScreen(
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             text = "Groww-Style Floating Ticker: Minimize the app (swipe up/home) or tap the floating window icon to stream live NIFTY & SENSEX over any app in Picture-in-Picture mode.",
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            lineHeight = 15.sp
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // ==============================================================
+            // --- SECTION: LOCK SCREEN & LIVE TICKER ---
+            // ==============================================================
+            Text(
+                text = "LOCK SCREEN & LIVE TICKER",
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                letterSpacing = 1.sp
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Lock Screen Live Market Ticker",
+                                fontSize = 14.5.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = "Pins a silent, live-updating NIFTY 50 and SENSEX ticker on your device lock screen with 1-tap refresh without unlocking.",
+                                fontSize = 11.5.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                lineHeight = 15.sp
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Switch(
+                            checked = isLockScreenTickerEnabled,
+                            onCheckedChange = { viewModel.setLockScreenTickerEnabled(it) },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
+                                checkedTrackColor = MaterialTheme.colorScheme.primary
+                            )
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(Emerald500.copy(alpha = 0.08f))
+                            .padding(10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.CheckCircle,
+                            contentDescription = null,
+                            tint = Emerald500,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Lock Screen Keyguard Widgets: Also enabled! You can now place the NiftySense widget directly on the lock screen on Samsung One UI, Xiaomi & supporting Android devices.",
                             fontSize = 11.sp,
                             color = MaterialTheme.colorScheme.onSurface,
                             lineHeight = 15.sp

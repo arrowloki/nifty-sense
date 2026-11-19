@@ -42,6 +42,9 @@ class MarketPreferencesDataStore(private val context: Context) {
         // Live Foreground Streaming Service Keys
         private val KEY_LIVE_STREAM_ENABLED = booleanPreferencesKey("live_stream_enabled")
         private val KEY_LIVE_STREAM_INTERVAL_SECONDS = intPreferencesKey("live_stream_interval_seconds")
+
+        // Lock Screen Ticker
+        private val KEY_LOCK_SCREEN_TICKER_ENABLED = booleanPreferencesKey("lock_screen_ticker_enabled")
     }
 
     val cachedSnapshotFlow: Flow<MarketSnapshot?> = context.dataStore.data.map { prefs ->
@@ -191,6 +194,17 @@ class MarketPreferencesDataStore(private val context: Context) {
     suspend fun clearCache() {
         context.dataStore.edit { prefs ->
             prefs.remove(KEY_CACHED_SNAPSHOT)
+        }
+    }
+
+    // --- Lock Screen Live Ticker ---
+    val lockScreenTickerEnabledFlow: Flow<Boolean> = context.dataStore.data.map { prefs ->
+        prefs[KEY_LOCK_SCREEN_TICKER_ENABLED] ?: true
+    }
+
+    suspend fun setLockScreenTickerEnabled(enabled: Boolean) {
+        context.dataStore.edit { prefs ->
+            prefs[KEY_LOCK_SCREEN_TICKER_ENABLED] = enabled
         }
     }
 }

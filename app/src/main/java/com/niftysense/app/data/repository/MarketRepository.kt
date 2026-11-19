@@ -4,6 +4,7 @@ import android.content.Context
 import com.niftysense.app.data.local.MarketPreferencesDataStore
 import com.niftysense.app.data.model.MarketSnapshot
 import com.niftysense.app.data.remote.FyersWebSocketClient
+import com.niftysense.app.widget.lockscreen.LockScreenTickerManager
 import com.niftysense.app.widget.provider.NiftySenseWidgetProvider
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -11,6 +12,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 data class MarketUiState(
@@ -36,9 +38,19 @@ class MarketRepository(
             val cached = preferencesDataStore.getCachedSnapshot()
             if (cached != null) {
                 _uiState.value = MarketUiState(snapshot = cached, isLoading = false)
+                val isLockScreenEnabled = preferencesDataStore.lockScreenTickerEnabledFlow.first()
+                LockScreenTickerManager.updateNotification(context, cached, isLockScreenEnabled)
             }
             // Trigger fresh background fetch on startup
             refresh()
+        }
+
+        // Listen for lock screen ticker setting toggles
+        repositoryScope.launch {
+            preferencesDataStore.lockScreenTickerEnabledFlow.collect { isEnabled ->
+                val current = _uiState.value.snapshot ?: preferencesDataStore.getCachedSnapshot()
+                LockScreenTickerManager.updateNotification(context, current, isEnabled)
+            }
         }
 
         // Initialize and listen to real-time Fyers WebSocket ticks
@@ -60,6 +72,8 @@ class MarketRepository(
                             errorMessage = null
                         )
                         NiftySenseWidgetProvider.updateAllWidgets(context, freshSnapshot)
+                        val isLockScreenEnabled = preferencesDataStore.lockScreenTickerEnabledFlow.first()
+                        LockScreenTickerManager.updateNotification(context, freshSnapshot, isLockScreenEnabled)
                     }
                 }
             }
@@ -79,8 +93,10 @@ class MarketRepository(
                 isLoading = false,
                 errorMessage = null
             )
-            // Trigger immediate widget update across all active home-screen widgets
+            // Trigger immediate widget update across all active home-screen widgets & lock screen
             NiftySenseWidgetProvider.updateAllWidgets(context, freshSnapshot)
+            val isLockScreenEnabled = preferencesDataStore.lockScreenTickerEnabledFlow.first()
+            LockScreenTickerManager.updateNotification(context, freshSnapshot, isLockScreenEnabled)
             return Result.success(freshSnapshot)
         } else {
             val error = result.exceptionOrNull()?.localizedMessage ?: "Failed to update market data"
@@ -93,6 +109,8 @@ class MarketRepository(
             )
             if (currentSnapshot != null) {
                 NiftySenseWidgetProvider.updateAllWidgets(context, currentSnapshot)
+                val isLockScreenEnabled = preferencesDataStore.lockScreenTickerEnabledFlow.first()
+                LockScreenTickerManager.updateNotification(context, currentSnapshot, isLockScreenEnabled)
             }
             return Result.failure(result.exceptionOrNull() ?: Exception(error))
         }

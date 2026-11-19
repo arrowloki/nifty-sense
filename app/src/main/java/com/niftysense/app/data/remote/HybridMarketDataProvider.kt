@@ -21,8 +21,8 @@ import java.util.concurrent.TimeUnit
 
 class HybridMarketDataProvider(
     private val client: OkHttpClient = OkHttpClient.Builder()
-        .connectTimeout(8, TimeUnit.SECONDS)
-        .readTimeout(8, TimeUnit.SECONDS)
+        .connectTimeout(5, TimeUnit.SECONDS)
+        .readTimeout(5, TimeUnit.SECONDS)
         .build()
 ) : MarketDataProvider {
 
@@ -49,14 +49,20 @@ class HybridMarketDataProvider(
                 val mcNiftyDeferred = async { fetchMoneycontrolIndex(mcNiftyUrl, "NIFTY 50", "NSE", "^NSEI") }
                 val mcSensexDeferred = async { fetchMoneycontrolIndex(mcSensexUrl, "SENSEX", "BSE", "^BSESN") }
 
-                // 2. Fetch sparkline arrays from Yahoo Finance
-                val yahooNiftyDeferred = async { fetchYahooSparkline(yahooNiftyUrl) }
-                val yahooSensexDeferred = async { fetchYahooSparkline(yahooSensexUrl) }
+                // 2. Fetch sparkline arrays from Yahoo Finance with 2s timeout so Moneycontrol is never stalled
+                val yahooNiftyDeferred = async {
+                    kotlinx.coroutines.withTimeoutOrNull(2000L) {
+                        fetchYahooSparkline(yahooNiftyUrl).getOrNull()
+                    } ?: emptyList()
+                }
+                val yahooSensexDeferred = async {
+                    kotlinx.coroutines.withTimeoutOrNull(2000L) {
+                        fetchYahooSparkline(yahooSensexUrl).getOrNull()
+                    } ?: emptyList()
+                }
 
                 val mcNiftyResult = mcNiftyDeferred.await()
                 val mcSensexResult = mcSensexDeferred.await()
-                val niftySparkline = yahooNiftyDeferred.await().getOrNull() ?: emptyList()
-                val sensexSparkline = yahooSensexDeferred.await().getOrNull() ?: emptyList()
 
                 // If Moneycontrol succeeds for both, use the true real-time prices
                 val niftyData: MarketIndexData
@@ -65,6 +71,8 @@ class HybridMarketDataProvider(
                 if (mcNiftyResult.isSuccess && mcSensexResult.isSuccess) {
                     val rawNifty = mcNiftyResult.getOrThrow()
                     val rawSensex = mcSensexResult.getOrThrow()
+                    val niftySparkline = yahooNiftyDeferred.await()
+                    val sensexSparkline = yahooSensexDeferred.await()
 
                     niftyData = rawNifty.copy(
                         sparklinePoints = if (niftySparkline.isNotEmpty()) niftySparkline else rawNifty.sparklinePoints
